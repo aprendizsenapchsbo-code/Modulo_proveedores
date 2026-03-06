@@ -1,5 +1,15 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useUsuarioStore } from '../stores/usuario';
+
+const router = useRouter()
+const usuarioStore = useUsuarioStore()
+
+onMounted(() => {
+    console.log('Usuario en store:', usuarioStore.usuario);
+    console.log('Rol:', usuarioStore.usuario?.rol);
+})
 
 const model = ref(null)
 const optionsTipo = [
@@ -8,6 +18,15 @@ const optionsTipo = [
 const optionsEstado = [
         'Actualizado', 'Pendiente Actualización', 'Incativo'
       ]
+
+function logout() {
+    usuarioStore.clearUsuario();
+    usuarioStore.clearToken();
+    router.push('/')
+
+    console.log("Sesión cerrada");
+    
+}
 </script>
 
 <template>
@@ -15,13 +34,13 @@ const optionsEstado = [
             <section class="contenidoHeader">
                 <div class="header">
                     <div class="rol-admin">
-                        <span>Usuario - Admin/Asistente</span>
+                        <span class="bg-secondary text-white q-px-md q-py-sm rounded-borders">{{ usuarioStore.usuario?.nombre }} - {{ usuarioStore.usuario?.rol }} </span>
                     </div>
                     <div class="btn-logout">
-                        <q-btn
-                        class="logout bg-clear"
-                        label="Cerrar sesión"
-                        />
+                        <q-btn 
+                        @click="logout" 
+                        class="logout bg-clear" 
+                        label="Cerrar sesión" />
                     </div>
                 </div>
             </section>

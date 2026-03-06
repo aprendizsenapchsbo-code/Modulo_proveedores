@@ -1,10 +1,17 @@
 <script setup>
 import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import axios from 'axios';
 
-const email = ref()
-const password = ref()
+import { exitoNotify, errorNotify } from '../composables/Notify';
+import { useUsuarioStore } from '../stores/usuario';
+
+const email = ref('')
+const password = ref('')
 const isPwd = ref(true)
-let loading = ref(false)
+const loading = ref(false)
+const usuarioStore = useUsuarioStore()
+const router = useRouter()
 
 // Validaciones de rules
 const emailRules = [
@@ -21,9 +28,31 @@ const passwordRules = [
 async function login() {
     loading.value = true
     try {
+
+        const r = await axios.post("http://localhost:3000/api/usuario/login", {
+            email: email.value,
+            password: password.value
+        });
+
+        console.log("Login exitoso: ", r.data.data.usuario);
+        // console.log("Token: ", r.data.data.token);
+
+        usuarioStore.setUsuario(r.data.data.usuario); // Guardar el usuario en el store
+        usuarioStore.setToken(r.data.data.token); // Guardar el token en el store
+
+        // console.log('Usuario guardado:', usuarioStore.usuario);
+        // console.log('Token guardado:', usuarioStore.token);
+
+        exitoNotify(`¡Bienvenido, ${usuarioStore.usuario.nombre}!`);
+
+        router.push('/dashboard')
         
     } catch (error) {
-        
+        console.error("Error al iniciar sesión", error.response?.data || error);
+        errorNotify(error.response?.data?.msg || 'Error al iniciar sesión');
+    
+    } finally {
+        loading.value = false;
     }
 }
 
@@ -38,7 +67,7 @@ async function login() {
                 <img class="logo q-mb-xl" src="../assets/Logo_login.png" alt="Logo_del_Login">
             </div>
 
-            <q-form @sumbit="login">
+            <q-form @submit.prevent="login">
                 <div class="form">
                     <q-input class="q-mb-md bg-clear input" v-model="email" filled lazy-rules :rules="emailRules"
                         type="email" label="Email" />
@@ -56,7 +85,7 @@ async function login() {
                     <q-btn 
                     class="botonLogin q-mb-xl" 
                     :loading="loading"
-                    type="sumbit" 
+                    type="submit" 
                     text-color="white" 
                     label="Iniciar Sesión"
                     />
