@@ -2,14 +2,25 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUsuarioStore } from '../stores/usuario';
+import axios from 'axios';
+import { exitoNotify, errorNotify } from '../composables/Notify';
 
 const router = useRouter()
 const usuarioStore = useUsuarioStore()
+
 
 onMounted(() => {
     console.log('Usuario en store:', usuarioStore.usuario);
     console.log('Rol:', usuarioStore.usuario?.rol);
 })
+
+const emailRules = [
+    val => (val && val.length > 0) || 'El campo email es obligatorio',
+    val => {
+        const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        return !val || pattern.test(val) || 'El formato del email no es válido'
+    }
+]
 
 const model = ref(null)
 const optionsTipo = [
@@ -26,6 +37,33 @@ function logout() {
 
     console.log("Sesión cerrada");
     
+}
+
+const persistent = ref(false);
+
+// funcion para enviar el correo de invitación
+const CorreoElectronico = ref('')
+const loading = ref(false)
+
+async function enviarInvitacion() {
+    loading.value = true
+    try {
+        
+        const respuesta = await axios.post('http://localhost:3000/api/proveedor/registro', {
+            CorreoElectronico: CorreoElectronico.value
+        })
+
+        console.log('Solicitud enviada:', respuesta.data);
+        persistent.value = false
+
+        exitoNotify(`¡Solicitud enviada a ${CorreoElectronico.value}. Link válido por 5 días!`);
+
+    } catch (error) {
+        console.error('Error al enviar la invitación:', error);
+        errorNotify(error.response?.data?.msg || 'Error al enviar la invitación');
+    } finally {
+        loading.value = false
+    }
 }
 </script>
 
@@ -111,6 +149,50 @@ function logout() {
                     label="Estado" 
                     />
                 </div>
+
+                <div class="btnRegistrarProveedor q-pr-lg">
+                    <q-btn 
+                    @click="persistent = true"
+                    class="bg-primary text-white " 
+                    label="Registrar nuevo proveedor" 
+                    />
+
+                    
+                </div>
+            </section>
+
+            <section class="dialogoRegistro">
+                <q-dialog @submit.prevent="enviarInvitacion" v-model="persistent" persistent transition-show="scale" transition-hide="scale" class="">
+                    <q-card class=" text-white" style="width: 500px;">
+                        <q-card-section class="bg-primary q-mb-md" style="display: flex; justify-content: space-between; align-items: center;">
+                            <div class="text-h6">Invitar a proveedor a registrarse</div>
+                            <q-card-actions align="right">
+                                <q-btn flat label="X" v-close-popup />
+                            </q-card-actions>
+                        </q-card-section>
+                        
+                        <q-form @submit.prevent="enviarInvitacion">
+                            <q-card-section class="q-pt-none q-pb-xl">
+                            <q-input class="q-mb-md bg-white input" v-model="CorreoElectronico" filled lazy-rules :rules="emailRules"
+                                type="CorreoElectronico" label="Email destino:" />
+                            </q-card-section>
+
+                            <q-card-section class="q-pa-none bg-grey-3" style="display: flex; justify-content: flex-end; gap: 10px;">
+                                <q-card-actions align="right" >
+                                    <q-btn class="bg-white text-black" flat label="Cancelar" v-close-popup />
+                                </q-card-actions>
+                                <q-card-actions align="right" >
+                                    <q-btn 
+                                    type="submit"
+                                    :loading="loading"
+                                    class="bg-primary text-white" 
+                                    flat label="Confirmar envio" 
+                                    />
+                                </q-card-actions>
+                            </q-card-section>
+                        </q-form>
+                    </q-card>
+                </q-dialog>
             </section>
         </div>
     </div>
@@ -223,5 +305,8 @@ function logout() {
 
 .filtros .filtroEstado .selectEstado :deep(.q-field__control) {
     border-radius: 12px;
+}
+.filtros .btnRegistrarProveedor {
+    margin-left: auto;
 }
 </style>
