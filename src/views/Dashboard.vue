@@ -2,11 +2,13 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUsuarioStore } from '../stores/usuario';
+import { useProveedorStore } from '../stores/proveedor.js';
 import axios from 'axios';
 import { exitoNotify, errorNotify } from '../composables/Notify';
 
 const router = useRouter()
 const usuarioStore = useUsuarioStore()
+const proveedorStore = useProveedorStore()
 
 
 onMounted(() => {
@@ -55,6 +57,16 @@ async function enviarInvitacion() {
 
         console.log('Solicitud enviada:', respuesta.data);
         persistent.value = false
+
+        const token = respuesta.data.token || respuesta.data.data?.token;
+        if (!token) {
+            console.error('Token no encontrado en la respuesta', respuesta.data);
+            errorNotify('No se recibió token del servidor al enviar la invitación');
+            return;
+        }
+
+        proveedorStore.setTokenRegistro(token);
+        console.log('Token de registro guardado:', token);
 
         exitoNotify(`¡Solicitud enviada a ${CorreoElectronico.value}. Link válido por 5 días!`);
 

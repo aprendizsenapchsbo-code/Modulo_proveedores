@@ -25,7 +25,7 @@ export const useUsuarioStore = defineStore('usuario', () => {
         localStorage.removeItem('token');
     }
 
-    return { usuario, token, setUsuario, setToken, clearUsuario, clearToken }
+    return { usuario, token, setUsuario, setToken, clearUsuario, clearToken  }
 }, {
     persist: true
 })
