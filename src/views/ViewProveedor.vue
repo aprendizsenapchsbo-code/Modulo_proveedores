@@ -24,7 +24,7 @@ async function crearRegistro() {
     }
 
     try {
-        const response = await axios.post(`http://localhost:3000/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
+        const response = await axios.post(`https://modulo-proveedores-backend.vercel.app/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
             NIT: nit.value,
             RazonSocial: razonSocial.value
         });

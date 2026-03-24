@@ -29,7 +29,7 @@ async function login() {
     loading.value = true
     try {
 
-        const r = await axios.post("http://localhost:3000/api/usuario/login", {
+        const r = await axios.post("https://modulo-proveedores-backend.vercel.app/api/usuario/login", {
             email: email.value,
             password: password.value
         });
