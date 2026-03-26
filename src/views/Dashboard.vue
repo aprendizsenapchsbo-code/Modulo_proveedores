@@ -54,7 +54,7 @@ async function enviarInvitacion() {
     loading.value = true
     try {
         
-        const respuesta = await axios.post('http://localhost:3000/api/proveedor/registro', {
+        const respuesta = await axios.post('https://modulo-proveedores-backend.vercel.app/api/proveedor/registro', {
             CorreoElectronico: CorreoElectronico.value
         })
 
@@ -176,7 +176,7 @@ const rows = ref([]);
 async function obtenerProveedores() {
     loading.value = true;
     try {
-        const response = await axios.get('http://localhost:3000/api/proveedor', {
+        const response = await axios.get('https://modulo-proveedores-backend.vercel.app/api/proveedor', {
             /* headers: {
                 Authorization: `Bearer ${proveedorStore.tokenRegistro}`
             } */
