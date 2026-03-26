@@ -13,6 +13,11 @@ onMounted(() => {
     console.log('Token proveedor en store:', proveedorStore.tokenRegistro);
 })
 
+async function limpiarFormulario() {
+    nit.value = '';
+    razonSocial.value = '';
+}
+
 async function crearRegistro() {
     loading.value = true;
     console.log('Token de registro:', proveedorStore.tokenRegistro); // Verificar el token antes de la solicitud
@@ -24,11 +29,13 @@ async function crearRegistro() {
     }
 
     try {
-        const response = await axios.post(`https://modulo-proveedores-backend.vercel.app/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
+        const response = await axios.post(`http://localhost:3000/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
             NIT: nit.value,
             RazonSocial: razonSocial.value
         });
         console.log(response.data);
+
+        limpiarFormulario();
 
         exitoNotify('Registro creado exitosamente');
     } catch (error) {

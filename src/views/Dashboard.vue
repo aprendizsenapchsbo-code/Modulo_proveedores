@@ -14,6 +14,7 @@ const proveedorStore = useProveedorStore()
 onMounted(() => {
     console.log('Usuario en store:', usuarioStore.usuario);
     console.log('Rol:', usuarioStore.usuario?.rol);
+    obtenerProveedores();
 })
 
 const emailRules = [
@@ -24,7 +25,9 @@ const emailRules = [
     }
 ]
 
-const model = ref(null)
+const modelTipo = ref(null)
+const modelEstado = ref(null)
+const text = ref(null)
 const optionsTipo = [
         'Servicio', 'Bien', 'Servicio/Bien'
       ]
@@ -51,7 +54,7 @@ async function enviarInvitacion() {
     loading.value = true
     try {
         
-        const respuesta = await axios.post('https://modulo-proveedores-backend.vercel.app/api/proveedor/registro', {
+        const respuesta = await axios.post('http://localhost:3000/api/proveedor/registro', {
             CorreoElectronico: CorreoElectronico.value
         })
 
@@ -76,6 +79,124 @@ async function enviarInvitacion() {
     } finally {
         loading.value = false
     }
+}
+
+// Contenido de la tabla
+// COLUMNAS
+const columns = [
+  {
+    name: 'NIT',
+    required: true,
+    label: 'NIT',
+    align: 'left',
+    field: 'NIT',
+    sortable: true
+  },
+  {
+    name: 'RazonSocial',
+    align: 'center',
+    label: 'Razón Social',
+    field: 'RazonSocial',
+    sortable: true
+  },
+  /* { 
+    name: 'DireccionNotificacion', 
+    label: 'Dirección de notificación', 
+    field: 'DireccionNotificacion', 
+    sortable: true 
+  },
+  { 
+    name: 'Telefono', 
+    label: 'Teléfono', 
+    field: 'Telefono'
+  },
+  { 
+    name: 'Ciudad', 
+    label: 'Ciudad', 
+    field: 'Ciudad' 
+  }, */
+  { 
+    name: 'CorreoElectronico', 
+    label: 'Correo Electrónico', 
+    field: 'CorreoElectronico' 
+  },
+/*   {
+    name: 'NombreRepresentante',
+    label: 'Nombre del Representante',
+    field: 'NombreRepresentante',
+    sortable: true
+  },
+  {
+    name: 'NumeroIdentificacion',
+    label: 'Número de Identificación',
+    field: 'NumeroIdentificacion',
+    sortable: true,
+  },
+  {
+    name: 'TelefonoRepresentante',
+    label: 'Teléfono del Representante',
+    field: 'TelefonoRepresentante',
+    sortable: true,
+  },
+  {
+    name: 'CorreoElectronicoRepresentante',
+    label: 'Correo Electrónico del Representante',
+    field: 'CorreoElectronicoRepresentante',
+    sortable: true,
+  },
+  {
+    name: 'NombresApellidosResponsable',
+    label: 'Nombres y Apellidos del Responsable',
+    field: 'NombresApellidosResponsable',
+    sortable: true,
+  },
+  {
+    name: 'CorreoElectronicoResponsable',
+    label: 'Correo Electrónico del Responsable',
+    field: 'CorreoElectronicoResponsable',
+    sortable: true,
+  },*/
+  {
+    name: 'estadoProveedor',
+    label: 'Estado',
+    field: 'estadoProveedor',
+    sortable: true,
+  },
+  {
+    name: 'Opciones',
+    label: 'Opciones',
+    field: 'Opciones',
+  }
+]
+
+// FILAS
+const rows = ref([]);
+
+// Función para traer los proveedores desde la base de datos
+async function obtenerProveedores() {
+    loading.value = true;
+    try {
+        const response = await axios.get('http://localhost:3000/api/proveedor', {
+            /* headers: {
+                Authorization: `Bearer ${proveedorStore.tokenRegistro}`
+            } */
+        });
+        // const r = response.data
+        console.log('Proveedores', response.data);
+        
+        rows.value = response.data.data
+        
+    } catch (error) {
+        console.error('Error al obtener proveedores:', error);
+    } finally {
+        loading.value = false;
+    }
+}
+
+// Función para editar un proveedor
+function editarProveedor(proveedor) {
+    console.log('Proveedor a actualizar', proveedor);
+    proveedorStore.setIdProveedor(proveedor.id);
 }
 </script>
 
@@ -146,7 +267,7 @@ async function enviarInvitacion() {
                     <q-select 
                     class="selectTipo"
                     outlined 
-                    v-model="model" 
+                    v-model="modelTipo" 
                     :options="optionsTipo" 
                     label="Tipo" 
                     />
@@ -156,7 +277,7 @@ async function enviarInvitacion() {
                     <q-select 
                     class="selectEstado"
                     outlined 
-                    v-model="model" 
+                    v-model="modelEstado" 
                     :options="optionsEstado" 
                     label="Estado" 
                     />
@@ -170,6 +291,26 @@ async function enviarInvitacion() {
                     />
 
                     
+                </div>
+            </section>
+
+            <section class="tablaProveedores">
+                <div class="q-pa-md">
+                    <q-table 
+                    title="Proveedores" 
+                    :rows="rows" 
+                    :columns="columns" 
+                    row-key="id" 
+                    :loading="loading"
+                    >
+                    <!-- Personalizar columna de Opciones -->
+                     <template v-slot:body-cell-Opciones="props">
+                        <q-td :props="props">
+                            <q-btn flat icon="edit" color="primary" @click="editarProveedor()"/>
+                            <q-btn flat icon="delete" color="negative" @click="eliminarProveedor()"/>
+                        </q-td>
+                     </template>
+                    </q-table>
                 </div>
             </section>
 
