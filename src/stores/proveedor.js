@@ -6,14 +6,31 @@ export const useProveedorStore = defineStore('proveedor', () => {
     const idProveedor = ref(null);
 
     function setTokenRegistro(data) {
+        console.log('Guardando token:', data);
         tokenRegistro.value = data;
     }
 
     function setIdProveedor(data) {
+        console.log('Guardando idProveedor:', data);
         idProveedor.value = data;
     }
 
-    return { tokenRegistro, setTokenRegistro, idProveedor, setIdProveedor }
+    function getIdProveedor() {
+        return idProveedor.value;
+    }
+
+    function clearIdProveedor() {
+        idProveedor.value = null;
+    }
+
+    return { 
+        tokenRegistro, 
+        setTokenRegistro, 
+        idProveedor, 
+        setIdProveedor,
+        getIdProveedor,
+        clearIdProveedor
+    }
 
 }, {
     persist: true

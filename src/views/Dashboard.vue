@@ -10,6 +10,9 @@ const router = useRouter()
 const usuarioStore = useUsuarioStore()
 const proveedorStore = useProveedorStore()
 
+const NIT = ref('');
+const RazonSocial = ref('');
+const CorreoElectronico = ref('');
 
 onMounted(() => {
     console.log('Usuario en store:', usuarioStore.usuario);
@@ -47,7 +50,6 @@ function logout() {
 const persistent = ref(false);
 
 // funcion para enviar el correo de invitación
-const CorreoElectronico = ref('')
 const loading = ref(false)
 
 async function enviarInvitacion() {
@@ -193,10 +195,25 @@ async function obtenerProveedores() {
     }
 }
 
+
 // Función para editar un proveedor
-function editarProveedor(proveedor) {
-    console.log('Proveedor a actualizar', proveedor);
+async function editarProveedor(proveedor) {
+    if(!proveedor.id) {
+        errorNotify('ID del proveedor no encontrado. No se puede actualizar el registro.');
+        return;
+    }
     proveedorStore.setIdProveedor(proveedor.id);
+
+    const r = await axios.put(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${proveedor.id}`, {
+        NIT: proveedor.NIT,
+        RazonSocial: proveedor.RazonSocial,
+        CorreoElectronico: proveedor.CorreoElectronico
+    }, {
+        /* headers: {
+            Authorization: `Bearer ${proveedorStore.tokenRegistro}`
+        } */
+    });
+    console.log('Proveedor a actualizar', r.data);
 }
 </script>
 
@@ -306,8 +323,8 @@ function editarProveedor(proveedor) {
                     <!-- Personalizar columna de Opciones -->
                      <template v-slot:body-cell-Opciones="props">
                         <q-td :props="props">
-                            <q-btn flat icon="edit" color="primary" @click="editarProveedor()"/>
-                            <q-btn flat icon="delete" color="negative" @click="eliminarProveedor()"/>
+                            <q-btn flat icon="edit" color="primary" @click="editarProveedor(props.row)"/>
+                            <q-btn flat icon="delete" color="negative" @click="eliminarProveedor(props.row)"/>
                         </q-td>
                      </template>
                     </q-table>
