@@ -10,9 +10,14 @@ const router = useRouter()
 const usuarioStore = useUsuarioStore()
 const proveedorStore = useProveedorStore()
 
-const NIT = ref('');
-const RazonSocial = ref('');
 const CorreoElectronico = ref('');
+
+// Refs para editar
+const nitEdit = ref('');
+const razonSocialEdit = ref('');
+const correoEdit = ref('');
+const estadoEdit = ref('');
+const proveedorEditando = ref(null);
 
 onMounted(() => {
     console.log('Usuario en store:', usuarioStore.usuario);
@@ -32,11 +37,11 @@ const modelTipo = ref(null)
 const modelEstado = ref(null)
 const text = ref(null)
 const optionsTipo = [
-        'Servicio', 'Bien', 'Servicio/Bien'
-      ]
+    'Servicio', 'Bien', 'Servicio/Bien'
+]
 const optionsEstado = [
-        'Actualizado', 'Pendiente Actualización', 'Incativo'
-      ]
+    'Actualizado', 'Pendiente Actualización', 'Incativo'
+]
 
 function logout() {
     usuarioStore.clearUsuario();
@@ -44,10 +49,21 @@ function logout() {
     router.push('/')
 
     console.log("Sesión cerrada");
-    
+
 }
 
 const persistent = ref(false);
+const persistentEdit = ref(false);
+
+// Función para abrir el modal de edición con datos precargados
+function abrirModalEditar(proveedor) {
+    proveedorEditando.value = proveedor;
+    nitEdit.value = proveedor.NIT;
+    razonSocialEdit.value = proveedor.RazonSocial;
+    correoEdit.value = proveedor.CorreoElectronico;
+    estadoEdit.value = proveedor.estadoProveedor;
+    persistentEdit.value = true;
+}
 
 // funcion para enviar el correo de invitación
 const loading = ref(false)
@@ -55,7 +71,7 @@ const loading = ref(false)
 async function enviarInvitacion() {
     loading.value = true
     try {
-        
+
         const respuesta = await axios.post('https://modulo-proveedores-backend.vercel.app/api/proveedor/registro', {
             CorreoElectronico: CorreoElectronico.value
         })
@@ -86,89 +102,89 @@ async function enviarInvitacion() {
 // Contenido de la tabla
 // COLUMNAS
 const columns = [
-  {
-    name: 'NIT',
-    required: true,
-    label: 'NIT',
-    align: 'left',
-    field: 'NIT',
-    sortable: true
-  },
-  {
-    name: 'RazonSocial',
-    align: 'center',
-    label: 'Razón Social',
-    field: 'RazonSocial',
-    sortable: true
-  },
-  /* { 
-    name: 'DireccionNotificacion', 
-    label: 'Dirección de notificación', 
-    field: 'DireccionNotificacion', 
-    sortable: true 
-  },
-  { 
-    name: 'Telefono', 
-    label: 'Teléfono', 
-    field: 'Telefono'
-  },
-  { 
-    name: 'Ciudad', 
-    label: 'Ciudad', 
-    field: 'Ciudad' 
-  }, */
-  { 
-    name: 'CorreoElectronico', 
-    label: 'Correo Electrónico', 
-    field: 'CorreoElectronico' 
-  },
-/*   {
-    name: 'NombreRepresentante',
-    label: 'Nombre del Representante',
-    field: 'NombreRepresentante',
-    sortable: true
-  },
-  {
-    name: 'NumeroIdentificacion',
-    label: 'Número de Identificación',
-    field: 'NumeroIdentificacion',
-    sortable: true,
-  },
-  {
-    name: 'TelefonoRepresentante',
-    label: 'Teléfono del Representante',
-    field: 'TelefonoRepresentante',
-    sortable: true,
-  },
-  {
-    name: 'CorreoElectronicoRepresentante',
-    label: 'Correo Electrónico del Representante',
-    field: 'CorreoElectronicoRepresentante',
-    sortable: true,
-  },
-  {
-    name: 'NombresApellidosResponsable',
-    label: 'Nombres y Apellidos del Responsable',
-    field: 'NombresApellidosResponsable',
-    sortable: true,
-  },
-  {
-    name: 'CorreoElectronicoResponsable',
-    label: 'Correo Electrónico del Responsable',
-    field: 'CorreoElectronicoResponsable',
-    sortable: true,
-  },*/
-  {
-    name: 'estadoProveedor',
-    label: 'Estado',
-    field: 'estadoProveedor',
-    sortable: true,
-  },
-  {
-    name: 'Opciones',
-    label: 'Opciones',
-    field: 'Opciones',
-  }
+    {
+        name: 'NIT',
+        required: true,
+        label: 'NIT',
+        align: 'left',
+        field: 'NIT',
+        sortable: true
+    },
+    {
+        name: 'RazonSocial',
+        align: 'center',
+        label: 'Razón Social',
+        field: 'RazonSocial',
+        sortable: true
+    },
+    /* { 
+      name: 'DireccionNotificacion', 
+      label: 'Dirección de notificación', 
+      field: 'DireccionNotificacion', 
+      sortable: true 
+    },
+    { 
+      name: 'Telefono', 
+      label: 'Teléfono', 
+      field: 'Telefono'
+    },
+    { 
+      name: 'Ciudad', 
+      label: 'Ciudad', 
+      field: 'Ciudad' 
+    }, */
+    {
+        name: 'CorreoElectronico',
+        label: 'Correo Electrónico',
+        field: 'CorreoElectronico'
+    },
+    /*   {
+        name: 'NombreRepresentante',
+        label: 'Nombre del Representante',
+        field: 'NombreRepresentante',
+        sortable: true
+      },
+      {
+        name: 'NumeroIdentificacion',
+        label: 'Número de Identificación',
+        field: 'NumeroIdentificacion',
+        sortable: true,
+      },
+      {
+        name: 'TelefonoRepresentante',
+        label: 'Teléfono del Representante',
+        field: 'TelefonoRepresentante',
+        sortable: true,
+      },
+      {
+        name: 'CorreoElectronicoRepresentante',
+        label: 'Correo Electrónico del Representante',
+        field: 'CorreoElectronicoRepresentante',
+        sortable: true,
+      },
+      {
+        name: 'NombresApellidosResponsable',
+        label: 'Nombres y Apellidos del Responsable',
+        field: 'NombresApellidosResponsable',
+        sortable: true,
+      },
+      {
+        name: 'CorreoElectronicoResponsable',
+        label: 'Correo Electrónico del Responsable',
+        field: 'CorreoElectronicoResponsable',
+        sortable: true,
+      },*/
+    {
+        name: 'estadoProveedor',
+        label: 'Estado',
+        field: 'estadoProveedor',
+        sortable: true,
+    },
+    {
+        name: 'Opciones',
+        label: 'Opciones',
+        field: 'Opciones',
+    }
 ]
 
 // FILAS
@@ -178,16 +194,16 @@ const rows = ref([]);
 async function obtenerProveedores() {
     loading.value = true;
     try {
-        const response = await axios.get('https://modulo-proveedores-backend.vercel.app/api/proveedor', {
+        const response = await axios.get('http://localhost:3000/api/proveedor', {
             /* headers: {
                 Authorization: `Bearer ${proveedorStore.tokenRegistro}`
             } */
         });
         // const r = response.data
         console.log('Proveedores', response.data);
-        
+
         rows.value = response.data.data
-        
+
     } catch (error) {
         console.error('Error al obtener proveedores:', error);
     } finally {
@@ -196,49 +212,80 @@ async function obtenerProveedores() {
 }
 
 
-// Función para editar un proveedor
-async function editarProveedor(proveedor) {
-    if(!proveedor.id) {
-        errorNotify('ID del proveedor no encontrado. No se puede actualizar el registro.');
-        return;
-    }
-    proveedorStore.setIdProveedor(proveedor.id);
+// Función para eliminar un proveedor
+async function eliminarProveedor(proveedor) {
+    // Aquí puedes agregar una confirmación con q-dialog
+    if (!confirm('¿Estás seguro de que quieres eliminar este proveedor?')) return;
 
-    const r = await axios.put(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${proveedor.id}`, {
-        NIT: proveedor.NIT,
-        RazonSocial: proveedor.RazonSocial,
-        CorreoElectronico: proveedor.CorreoElectronico
-    }, {
-        /* headers: {
-            Authorization: `Bearer ${proveedorStore.tokenRegistro}`
-        } */
-    });
-    console.log('Proveedor a actualizar', r.data);
+    loading.value = true;
+    try {
+        console.log('Eliminando proveedor:', proveedor._id);
+        await axios.delete(`http://localhost:3000/api/proveedor/${proveedor._id}`);
+        exitoNotify('Proveedor eliminado exitosamente');
+        obtenerProveedores(); // Recargar la lista
+    } catch (error) {
+        console.error('Error al eliminar proveedor:', error);
+        errorNotify(error.response?.data?.msg || 'Error al eliminar proveedor');
+    } finally {
+        loading.value = false;
+    }
+}
+
+// función para editar un proveedor
+async function editarProveedor() {
+    const proveedor = proveedorEditando.value;
+    loading.value = true;
+    try {
+        console.log('ID proveedor:', proveedor._id);
+        if (!proveedor._id) {
+            errorNotify('ID del proveedor no encontrado. No se puede actualizar el registro.');
+            return;
+        }
+
+        const r = await axios.put(`http://localhost:3000/api/proveedor/${proveedor._id}`, {
+            NIT: nitEdit.value,
+            RazonSocial: razonSocialEdit.value,
+            CorreoElectronico: correoEdit.value,
+            estadoProveedor: estadoEdit.value
+        }, {
+            /* headers: {
+                Authorization: `Bearer ${proveedorStore.tokenRegistro}`
+            } */
+        });
+        console.log('Proveedor actualizado', r.data);
+        exitoNotify('Proveedor actualizado exitosamente');
+        persistentEdit.value = false;
+        obtenerProveedores(); // Recargar la lista
+    } catch (error) {
+        console.error('Error al actualizar proveedor:', error);
+        errorNotify(error.response?.data?.msg || 'Error al actualizar proveedor');
+    } finally {
+        loading.value = false;
+    }
 }
 </script>
 
 <template>
     <div class="pantallaProveedores">
-            <section class="contenidoHeader">
-                <div class="header">
-                    <div class="rol-admin">
-                        <span class="bg-secondary text-white q-px-md q-py-sm rounded-borders">{{ usuarioStore.usuario?.nombre }} - {{ usuarioStore.usuario?.rol }} </span>
-                    </div>
-                    <div class="btn-logout">
-                        <q-btn 
-                        @click="logout" 
-                        class="logout bg-clear" 
-                        label="Cerrar sesión" />
-                    </div>
+        <section class="contenidoHeader">
+            <div class="header">
+                <div class="rol-admin">
+                    <span class="bg-secondary text-white q-px-md q-py-sm rounded-borders">{{
+                        usuarioStore.usuario?.nombre }} - {{ usuarioStore.usuario?.rol }} </span>
                 </div>
-            </section>
-            
+                <div class="btn-logout">
+                    <q-btn @click="logout" class="logout bg-clear" label="Cerrar sesión" />
+                </div>
+            </div>
+        </section>
+
         <div class="contenido">
             <section class="estadisticas q-mt-lg">
                 <div class="box1 text-body2 q-pl-md q-pt-md">
                     <div class="contenido1">
                         <span class="text-grey-5">TOTAL PROVEEDORES</span>
-                        <div class="cuadritoAzul q-mr-md " style="width: 25px; height: 20px; background-color: #D7E8FF; border-radius: 5px;"></div>
+                        <div class="cuadritoAzul q-mr-md "
+                            style="width: 25px; height: 20px; background-color: #D7E8FF; border-radius: 5px;"></div>
                     </div>
 
                     <div class="contenido2">
@@ -249,7 +296,8 @@ async function editarProveedor(proveedor) {
                 <div class="box2 text-body2 q-pl-md q-pt-md">
                     <div class="contenido1">
                         <span class="text-grey-5">PENDIENTE DE ACTUALIZACION</span>
-                        <div class="cuadritoAzul q-mr-md " style="width: 25px; height: 20px; background-color: #FEE8A6; border-radius: 5px;"></div>
+                        <div class="cuadritoAzul q-mr-md "
+                            style="width: 25px; height: 20px; background-color: #FEE8A6; border-radius: 5px;"></div>
                     </div>
 
                     <div class="contenido2">
@@ -260,9 +308,10 @@ async function editarProveedor(proveedor) {
                 <div class="box3 text-body2 q-pl-md q-pt-md">
                     <div class="contenido1">
                         <span class="text-grey-5">CUMPLIMIENTO GENERAL</span>
-                        <div class="cuadritoAzul q-mr-md " style="width: 25px; height: 20px; background-color: #6BBB6B; border-radius: 5px;"></div>
+                        <div class="cuadritoAzul q-mr-md "
+                            style="width: 25px; height: 20px; background-color: #6BBB6B; border-radius: 5px;"></div>
                     </div>
-    
+
                     <div class="contenido2">
                         <span class="numeroTotalProveedores text-h5 text-bold">89%</span>
                         <span class="porcentajeMensual text-grey-5">Requiere atención inmediata</span>
@@ -272,92 +321,110 @@ async function editarProveedor(proveedor) {
 
             <section class="filtros q-mt-lg">
                 <div class="inputBusqueda">
-                    <q-input 
-                    outlined 
-                    v-model="text" 
-                    label="🔍 Buscar proveedor" 
-                    class="q-pl-md rounded-borders" 
-                    />
+                    <q-input outlined v-model="text" label="🔍 Buscar proveedor" class="q-pl-md rounded-borders" />
                 </div>
 
                 <div class="filtroTipo">
-                    <q-select 
-                    class="selectTipo"
-                    outlined 
-                    v-model="modelTipo" 
-                    :options="optionsTipo" 
-                    label="Tipo" 
-                    />
+                    <q-select class="selectTipo" outlined v-model="modelTipo" :options="optionsTipo" label="Tipo" />
                 </div>
 
                 <div class="filtroEstado">
-                    <q-select 
-                    class="selectEstado"
-                    outlined 
-                    v-model="modelEstado" 
-                    :options="optionsEstado" 
-                    label="Estado" 
-                    />
+                    <q-select class="selectEstado" outlined v-model="modelEstado" :options="optionsEstado"
+                        label="Estado" />
                 </div>
 
                 <div class="btnRegistrarProveedor q-pr-lg">
-                    <q-btn 
-                    @click="persistent = true"
-                    class="bg-primary text-white " 
-                    label="Registrar nuevo proveedor" 
-                    />
+                    <q-btn @click="persistent = true" class="bg-primary text-white "
+                        label="Registrar nuevo proveedor" />
 
-                    
+
                 </div>
             </section>
 
             <section class="tablaProveedores">
                 <div class="q-pa-md">
-                    <q-table 
-                    title="Proveedores" 
-                    :rows="rows" 
-                    :columns="columns" 
-                    row-key="id" 
-                    :loading="loading"
-                    >
-                    <!-- Personalizar columna de Opciones -->
-                     <template v-slot:body-cell-Opciones="props">
-                        <q-td :props="props">
-                            <q-btn flat icon="edit" color="primary" @click="editarProveedor(props.row)"/>
-                            <q-btn flat icon="delete" color="negative" @click="eliminarProveedor(props.row)"/>
-                        </q-td>
-                     </template>
+                    <q-table title="Proveedores" :rows="rows" :columns="columns" row-key="id" :loading="loading">
+                        <!-- Personalizar columna de Opciones -->
+                        <template v-slot:body-cell-Opciones="props">
+                            <q-td :props="props">
+                                <q-btn flat icon="edit" color="primary" @click="abrirModalEditar(props.row)" />
+                                <q-btn flat icon="delete" color="negative" @click="eliminarProveedor(props.row)" />
+                            </q-td>
+                        </template>
                     </q-table>
                 </div>
             </section>
 
             <section class="dialogoRegistro">
-                <q-dialog @submit.prevent="enviarInvitacion" v-model="persistent" persistent transition-show="scale" transition-hide="scale" class="">
+                <q-dialog @submit.prevent="enviarInvitacion" v-model="persistent" persistent transition-show="scale"
+                    transition-hide="scale" class="">
                     <q-card class=" text-white" style="width: 500px;">
-                        <q-card-section class="bg-primary q-mb-md" style="display: flex; justify-content: space-between; align-items: center;">
+                        <q-card-section class="bg-primary q-mb-md"
+                            style="display: flex; justify-content: space-between; align-items: center;">
                             <div class="text-h6">Invitar a proveedor a registrarse</div>
                             <q-card-actions align="right">
                                 <q-btn flat label="X" v-close-popup />
                             </q-card-actions>
                         </q-card-section>
-                        
+
                         <q-form @submit.prevent="enviarInvitacion">
                             <q-card-section class="q-pt-none q-pb-xl">
-                            <q-input class="q-mb-md bg-white input" v-model="CorreoElectronico" filled lazy-rules :rules="emailRules"
-                                type="CorreoElectronico" label="Email destino:" />
+                                <q-input class="q-mb-md bg-white input" v-model="CorreoElectronico" filled lazy-rules
+                                    :rules="emailRules" type="CorreoElectronico" label="Email destino:" />
+                            </q-card-section>
+
+                            <q-card-section class="q-pa-none bg-grey-3"
+                                style="display: flex; justify-content: flex-end; gap: 10px;">
+                                <q-card-actions align="right">
+                                    <q-btn class="bg-white text-black" flat label="Cancelar" v-close-popup />
+                                </q-card-actions>
+                                <q-card-actions align="right">
+                                    <q-btn type="submit" :loading="loading" class="bg-primary text-white" flat
+                                        label="Confirmar envio" />
+                                </q-card-actions>
+                            </q-card-section>
+                        </q-form>
+                    </q-card>
+                </q-dialog>
+            </section>
+
+            <section class="dialogoActualizar">
+                <q-dialog v-model="persistentEdit" persistent transition-show="scale" transition-hide="scale">
+                    <q-card class="text-white" style="width: 600px;">
+                        <q-card-section class="bg-primary q-mb-md" style="display: flex; justify-content: space-between; align-items: center;">
+                            <div class="text-h6">Editar Proveedor</div>
+                            <q-card-actions align="right">
+                                <q-btn flat label="X" v-close-popup />
+                            </q-card-actions>
+                        </q-card-section>
+
+                        <q-form @submit.prevent="editarProveedor">
+                            <q-card-section class="q-pt-none q-pb-xl">
+                                <p class="text-h5 text-secondary q-pb-md">Información General</p>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="nitEdit" label="Número de Identificación Tributaria (NIT)" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="razonSocialEdit" label="Razón Social" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="correoEdit" label="Correo Electrónico" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-select filled v-model="estadoEdit" :options="optionsEstado" label="Estado" />
+                                </div>
                             </q-card-section>
 
                             <q-card-section class="q-pa-none bg-grey-3" style="display: flex; justify-content: flex-end; gap: 10px;">
-                                <q-card-actions align="right" >
+                                <q-card-actions align="right">
                                     <q-btn class="bg-white text-black" flat label="Cancelar" v-close-popup />
                                 </q-card-actions>
-                                <q-card-actions align="right" >
-                                    <q-btn 
-                                    type="submit"
-                                    :loading="loading"
-                                    class="bg-primary text-white" 
-                                    flat label="Confirmar envio" 
-                                    />
+                                <q-card-actions align="right">
+                                    <q-btn type="submit" :loading="loading" class="bg-primary text-white" flat label="Guardar Cambios" />
                                 </q-card-actions>
                             </q-card-section>
                         </q-form>
@@ -465,7 +532,7 @@ async function editarProveedor(proveedor) {
     width: 150px;
 }
 
-.filtros .filtroTipo  .selectTipo :deep(.q-field__control) {
+.filtros .filtroTipo .selectTipo :deep(.q-field__control) {
     border-radius: 12px;
 }
 
@@ -476,6 +543,7 @@ async function editarProveedor(proveedor) {
 .filtros .filtroEstado .selectEstado :deep(.q-field__control) {
     border-radius: 12px;
 }
+
 .filtros .btnRegistrarProveedor {
     margin-left: auto;
 }

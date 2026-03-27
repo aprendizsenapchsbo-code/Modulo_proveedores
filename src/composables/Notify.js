@@ -4,7 +4,7 @@ const exitoNotify = function(message) {
     return Notify.create({
         type: 'positive',
         message: message,
-        position: 'top'
+        position: 'top-right'
     });
 }
 
