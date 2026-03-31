@@ -7,6 +7,23 @@ import { exitoNotify, errorNotify } from '../composables/Notify.js';
 const proveedorStore = useProveedorStore();
 const nit = ref('');
 const razonSocial = ref('');
+const direccionNotificacion = ref('');
+const telefono = ref('');
+const ciudad = ref('');
+const nombreRepresentante = ref('');
+const numeroIdentificacion = ref('');
+const telefonoRepresentante = ref('');
+const correoElectronicoRepresentante = ref('');
+const nombresApellidosResponsable = ref('');
+const correoElectronicoResponsable = ref('');
+const tipoContribuyente = ref('');
+const tipoContribuyenteOptions = [
+    { label: 'Persona Natural', value: 'persona natural' },
+    { label: 'Persona Jurídica', value: 'persona juridica' }
+];
+const autorizaDatosPersonales = ref(false);
+const autorizaConflictos = ref(false);
+const archivos = ref([]);
 const loading = ref(false);
 
 onMounted(() => {
@@ -16,6 +33,19 @@ onMounted(() => {
 async function limpiarFormulario() {
     nit.value = '';
     razonSocial.value = '';
+    direccionNotificacion.value = '';
+    telefono.value = '';
+    ciudad.value = '';
+    nombreRepresentante.value = '';
+    numeroIdentificacion.value = '';
+    telefonoRepresentante.value = '';
+    correoElectronicoRepresentante.value = '';
+    nombresApellidosResponsable.value = '';
+    correoElectronicoResponsable.value = '';
+    tipoContribuyente.value = '';
+    autorizaDatosPersonales.value = false;
+    autorizaConflictos.value = false;
+    archivos.value = [];
 }
 
 async function crearRegistro() {
@@ -31,7 +61,20 @@ async function crearRegistro() {
     try {
         const response = await axios.post(`https://modulo-proveedores-backend.vercel.app/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
             NIT: nit.value,
-            RazonSocial: razonSocial.value
+            RazonSocial: razonSocial.value,
+            DireccionNotificacion: direccionNotificacion.value,
+            Telefono: telefono.value,
+            Ciudad: ciudad.value,
+            NombreRepresentante: nombreRepresentante.value,
+            NumeroIdentificacion: numeroIdentificacion.value,
+            TelefonoRepresentante: telefonoRepresentante.value,
+            CorreoElectronicoRepresentante: correoElectronicoRepresentante.value,
+            NombresApellidosResponsable: nombresApellidosResponsable.value,
+            CorreoElectronicoResponsable: correoElectronicoResponsable.value,
+            TipoContribuyente: tipoContribuyente.value,
+            AutorizaDatosPersonales: autorizaDatosPersonales.value,
+            AutorizaConflictos: autorizaConflictos.value,
+            DocumentosAdjuntos: archivos.value.map(file => file.name)
         });
         console.log(response.data);
 
@@ -60,29 +103,134 @@ async function crearRegistro() {
             <q-form @submit.prevent="crearRegistro" class="" >
                 <p class="text-h5 text-secondary q-pb-md">Información General</p>
 
-                <div class="input1y2" style="display: flex; justify-content: space-between; gap: 20px;">
+                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <q-input
-                    class="inputNit"
-                    style="width: 50%;"
-                    filled
-                    v-model="nit"
-                    label="Número de Identificación Tributaria (NIT)"
+                        class="inputNit"
+                        style="width: 48%;"
+                        filled
+                        v-model="nit"
+                        label="Número de Identificación Tributaria (NIT)"
                     />
                     <q-input
-                    class="inputRazonSocial"
-                    style="width: 50%;"
-                    filled
-                    v-model="razonSocial"
-                    label="Razón Social"
+                        class="inputRazonSocial"
+                        style="width: 48%;"
+                        filled
+                        v-model="razonSocial"
+                        label="Razón Social"
+                    />
+                </div>
+
+                <p class="text-h5 text-secondary q-pt-md q-pb-md">Información de Notificación</p>
+                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
+                    <q-input
+                        style="width: 100%;"
+                        filled
+                        v-model="direccionNotificacion"
+                        label="Dirección de Notificación"
+                    />
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="telefono"
+                        label="Teléfono"
+                    />
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="ciudad"
+                        label="Ciudad"
+                    />
+                </div>
+
+                <p class="text-h5 text-secondary q-pt-md q-pb-md">Representante Legal</p>
+                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="nombreRepresentante"
+                        label="Nombre del Representante Legal"
+                    />
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="numeroIdentificacion"
+                        label="Número de Identificación del Representante"
+                    />
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="telefonoRepresentante"
+                        label="Teléfono del Representante"
+                    />
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="correoElectronicoRepresentante"
+                        label="Correo Electrónico del Representante"
+                        type="email"
+                    />
+                </div>
+
+                <p class="text-h5 text-secondary q-pt-md q-pb-md">Responsable de Facturación</p>
+                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
+                    <q-input
+                        style="width: 100%;"
+                        filled
+                        v-model="nombresApellidosResponsable"
+                        label="Nombres y Apellidos del Responsable"
+                    />
+                    <q-input
+                        style="width: 100%;"
+                        filled
+                        v-model="correoElectronicoResponsable"
+                        label="Correo Electrónico del Responsable"
+                        type="email"
+                    />
+                </div>
+
+                <p class="text-h5 text-secondary q-pt-md q-pb-md">Datos Adicionales</p>
+                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
+                    <q-select
+                        style="width: 48%;"
+                        filled
+                        v-model="tipoContribuyente"
+                        :options="tipoContribuyenteOptions"
+                        label="Tipo de Contribuyente"
+                    />
+                    <div style="width: 48%; display: flex; flex-direction: column; gap: 8px;">
+                        <q-checkbox
+                            v-model="autorizaDatosPersonales"
+                            label="Autorizo el tratamiento de datos personales"
+                        />
+                        <q-checkbox
+                            v-model="autorizaConflictos"
+                            label="Autorizo la declaración de conflictos e intereses"
+                        />
+                    </div>
+                </div>
+
+                <div class="q-mt-md" style="display: flex; flex-direction: column; gap: 12px;">
+                    <p class="text-h6 text-secondary">Carga de Documentos</p>
+                    <q-file
+                        filled
+                        bottom-slots
+                        v-model="archivos"
+                        multiple
+                        hide-upload-btn
+                        label="Haga clic para cargar o arrastre sus archivos"
+                        style="min-height: 140px;"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        counter
                     />
                 </div>
 
                 <div class="boton q-mt-md" style="display: flex; justify-content: flex-end;">
                     <q-btn
-                    type="submit"
-                    :submit="true"
-                    label="Guardar"
-                    color="primary"
+                        type="submit"
+                        :submit="true"
+                        label="Guardar"
+                        color="primary"
+                        :loading="loading"
                     />
                 </div>
             </q-form>

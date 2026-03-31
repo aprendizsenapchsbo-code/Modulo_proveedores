@@ -12,6 +12,11 @@ const proveedorStore = useProveedorStore()
 
 const CorreoElectronico = ref('');
 
+const totalProveedores = ref(0);
+const totalProveedoresPendientes = ref(0);
+const cumplimiientoGeneral = ref(0);
+
+
 // Refs para editar
 const nitEdit = ref('');
 const razonSocialEdit = ref('');
@@ -194,13 +199,22 @@ const rows = ref([]);
 async function obtenerProveedores() {
     loading.value = true;
     try {
-        const response = await axios.get('http://localhost:3000/api/proveedor', {
+        const response = await axios.get('https://modulo-proveedores-backend.vercel.app/api/proveedor', {
             /* headers: {
                 Authorization: `Bearer ${proveedorStore.tokenRegistro}`
             } */
         });
         // const r = response.data
         console.log('Proveedores', response.data);
+        
+        totalProveedores.value = response.data.data.length;
+        console.log(totalProveedores);
+
+        totalProveedoresPendientes.value = response.data.data.filter(p => p.estadoProveedor === 'Pendiente Actualización').length;
+        console.log(totalProveedoresPendientes);
+
+        cumplimiientoGeneral.value = Math.round(((totalProveedores.value - totalProveedoresPendientes.value) / totalProveedores.value) * 100);
+        console.log(cumplimiientoGeneral);
 
         rows.value = response.data.data
 
@@ -220,7 +234,7 @@ async function eliminarProveedor(proveedor) {
     loading.value = true;
     try {
         console.log('Eliminando proveedor:', proveedor._id);
-        await axios.delete(`http://localhost:3000/api/proveedor/${proveedor._id}`);
+        await axios.delete(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${proveedor._id}`);
         exitoNotify('Proveedor eliminado exitosamente');
         obtenerProveedores(); // Recargar la lista
     } catch (error) {
@@ -242,7 +256,7 @@ async function editarProveedor() {
             return;
         }
 
-        const r = await axios.put(`http://localhost:3000/api/proveedor/${proveedor._id}`, {
+        const r = await axios.put(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${proveedor._id}`, {
             NIT: nitEdit.value,
             RazonSocial: razonSocialEdit.value,
             CorreoElectronico: correoEdit.value,
@@ -259,6 +273,23 @@ async function editarProveedor() {
     } catch (error) {
         console.error('Error al actualizar proveedor:', error);
         errorNotify(error.response?.data?.msg || 'Error al actualizar proveedor');
+    } finally {
+        loading.value = false;
+    }
+}
+
+// función para solicitar actualización al proveedor
+async function solicitarActualizacionProveedor(proveedor) {
+    loading.value = true;
+    try {
+        console.log('Solicitando actualización para proveedor:', proveedor._id);
+        await axios.put(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${proveedor._id}/solicitar-actualizacion`);
+        exitoNotify('Solicitud de actualización enviada al proveedor');
+
+        obtenerProveedores(); // Recargar la lista para reflejar cambios
+    } catch (error) {
+        console.error('Error al solicitar actualización:', error);
+        errorNotify(error.response?.data?.msg || 'Error al solicitar actualización');
     } finally {
         loading.value = false;
     }
@@ -289,7 +320,7 @@ async function editarProveedor() {
                     </div>
 
                     <div class="contenido2">
-                        <span class="numeroTotalProveedores text-h5 text-bold">128</span>
+                        <span class="numeroTotalProveedores text-h5 text-bold">{{ totalProveedores }}</span>
                         <span class="porcentajeMensual text-primary">12% este mes</span>
                     </div>
                 </div>
@@ -301,7 +332,7 @@ async function editarProveedor() {
                     </div>
 
                     <div class="contenido2">
-                        <span class="numeroTotalProveedores text-h5 text-bold">14</span>
+                        <span class="numeroTotalProveedores text-h5 text-bold">{{ totalProveedoresPendientes }}</span>
                         <span class="porcentajeMensual" style="color: #F8C837;">Requiere atención inmediata</span>
                     </div>
                 </div>
@@ -313,7 +344,7 @@ async function editarProveedor() {
                     </div>
 
                     <div class="contenido2">
-                        <span class="numeroTotalProveedores text-h5 text-bold">89%</span>
+                        <span class="numeroTotalProveedores text-h5 text-bold">{{ cumplimiientoGeneral }}%</span>
                         <span class="porcentajeMensual text-grey-5">Requiere atención inmediata</span>
                     </div>
                 </div>
@@ -347,8 +378,18 @@ async function editarProveedor() {
                         <!-- Personalizar columna de Opciones -->
                         <template v-slot:body-cell-Opciones="props">
                             <q-td :props="props">
-                                <q-btn flat icon="edit" color="primary" @click="abrirModalEditar(props.row)" />
+                                <q-btn flat icon="edit" color="primary" @click="abrirModalEditar(props.row)">
+                                    <q-tooltip transition-show="scale" transition-hide="scale">
+                                        Editar proveedor
+                                    </q-tooltip>
+                                </q-btn>
                                 <q-btn flat icon="delete" color="negative" @click="eliminarProveedor(props.row)" />
+                                <q-btn flat icon="email" color="warning"
+                                    @click="solicitarActualizacionProveedor(props.row)">
+                                    <q-tooltip transition-show="scale" transition-hide="scale">
+                                        Solicitar actualización al proveedor
+                                    </q-tooltip>
+                                </q-btn>
                             </q-td>
                         </template>
                     </q-table>
@@ -391,7 +432,8 @@ async function editarProveedor() {
             <section class="dialogoActualizar">
                 <q-dialog v-model="persistentEdit" persistent transition-show="scale" transition-hide="scale">
                     <q-card class="text-white" style="width: 600px;">
-                        <q-card-section class="bg-primary q-mb-md" style="display: flex; justify-content: space-between; align-items: center;">
+                        <q-card-section class="bg-primary q-mb-md"
+                            style="display: flex; justify-content: space-between; align-items: center;">
                             <div class="text-h6">Editar Proveedor</div>
                             <q-card-actions align="right">
                                 <q-btn flat label="X" v-close-popup />
@@ -403,7 +445,8 @@ async function editarProveedor() {
                                 <p class="text-h5 text-secondary q-pb-md">Información General</p>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="nitEdit" label="Número de Identificación Tributaria (NIT)" />
+                                    <q-input filled v-model="nitEdit"
+                                        label="Número de Identificación Tributaria (NIT)" />
                                 </div>
 
                                 <div class="q-mb-md">
@@ -419,12 +462,14 @@ async function editarProveedor() {
                                 </div>
                             </q-card-section>
 
-                            <q-card-section class="q-pa-none bg-grey-3" style="display: flex; justify-content: flex-end; gap: 10px;">
+                            <q-card-section class="q-pa-none bg-grey-3"
+                                style="display: flex; justify-content: flex-end; gap: 10px;">
                                 <q-card-actions align="right">
                                     <q-btn class="bg-white text-black" flat label="Cancelar" v-close-popup />
                                 </q-card-actions>
                                 <q-card-actions align="right">
-                                    <q-btn type="submit" :loading="loading" class="bg-primary text-white" flat label="Guardar Cambios" />
+                                    <q-btn type="submit" :loading="loading" class="bg-primary text-white" flat
+                                        label="Guardar Cambios" />
                                 </q-card-actions>
                             </q-card-section>
                         </q-form>
