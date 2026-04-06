@@ -25,6 +25,7 @@ const autorizaDatosPersonales = ref(false);
 const autorizaConflictos = ref(false);
 const archivos = ref([]);
 const loading = ref(false);
+const intentoEnviar = ref(false);
 
 onMounted(() => {
     console.log('Token proveedor en store:', proveedorStore.tokenRegistro);
@@ -50,6 +51,7 @@ async function limpiarFormulario() {
 
 async function crearRegistro() {
     loading.value = true;
+    intentoEnviar.value = true;
     console.log('Token de registro:', proveedorStore.tokenRegistro); // Verificar el token antes de la solicitud
 
     if (!proveedorStore.tokenRegistro) {
@@ -100,6 +102,12 @@ async function crearRegistro() {
             Documentos: documentosSubidos  //URLs reales de Cloudinary
         });
         console.log(response.data);
+
+        if (!autorizaDatosPersonales.value || !autorizaConflictos.value) {
+            errorNotify('Debe aceptar ambas autorizaciones para continuar con el registro.');
+            loading.value = false;
+            return;
+        };
 
         limpiarFormulario();
 
@@ -226,11 +234,21 @@ async function crearRegistro() {
                         <q-checkbox
                             v-model="autorizaDatosPersonales"
                             label="Autorizo el tratamiento de datos personales"
+                            :color="!autorizaDatosPersonales ? 'negative' : 'primary'"
                         />
+                        <span v-if="intentoEnviar && !autorizaDatosPersonales" style="color: red; font-size: 12px;">
+                            Debe aceptar la autorización de tratamiento de datos personales.
+                        </span>
+
                         <q-checkbox
                             v-model="autorizaConflictos"
                             label="Autorizo la declaración de conflictos e intereses"
+                            :color="!autorizaConflictos ? 'negative' : 'primary'"
                         />
+                        <span v-if="intentoEnviar && !autorizaConflictos" style="color: red; font-size: 12px;">
+                            Debe aceptar la autorización de declaración de conflictos e intereses.
+                        </span>
+
                     </div>
                 </div>
 
