@@ -96,7 +96,7 @@ async function enviarInvitacion() {
     loading.value = true
     try {
 
-        const respuesta = await axios.post('http://localhost:3001/api/proveedor/registro', {
+        const respuesta = await axios.post('https://modulo-proveedores-backend.vercel.app/api/proveedor/registro', {
             CorreoElectronico: CorreoElectronico.value
         })
 
