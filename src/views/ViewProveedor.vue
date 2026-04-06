@@ -18,8 +18,8 @@ const nombresApellidosResponsable = ref('');
 const correoElectronicoResponsable = ref('');
 const tipoContribuyente = ref('');
 const tipoContribuyenteOptions = [
-    { label: 'Persona Natural', value: 'persona natural' },
-    { label: 'Persona Jurídica', value: 'persona juridica' }
+    { label: 'Persona Natural', value: 'Persona Natural' },
+    { label: 'Persona Jurídica', value: 'Persona Jurídica' }
 ];
 const autorizaDatosPersonales = ref(false);
 const autorizaConflictos = ref(false);
@@ -57,8 +57,31 @@ async function crearRegistro() {
         loading.value = false;
         return;
     }
+    
+    //Validar que haya al menos un archivo
+    if (!archivos.value || archivos.value.length === 0) {
+        errorNotify('Debe cargar al menos un documento.');
+        loading.value = false;
+        return;
+    }
 
     try {
+        // Subir primero los archivos a Cloudinary
+        const documentosSubidos = await Promise.all(
+            archivos.value.map(async (archivo) => {
+                const formData = new FormData();
+                formData.append('archivo', archivo);
+                formData.append('tipo', archivo.name.split('.')[0]); //nombre del archivo como tipo
+
+                const res = await axios.post(
+                    'https://modulo-proveedores-backend.vercel.app/api/proveedor/upload',
+                    formData,
+                    { headers: { 'Content-Type': 'multipart/form-data'}}
+                );
+                return res.data.data;   
+            })
+        );
+
         const response = await axios.post(`https://modulo-proveedores-backend.vercel.app/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
             NIT: nit.value,
             RazonSocial: razonSocial.value,
@@ -74,7 +97,7 @@ async function crearRegistro() {
             TipoContribuyente: tipoContribuyente.value,
             AutorizaDatosPersonales: autorizaDatosPersonales.value,
             AutorizaConflictos: autorizaConflictos.value,
-            DocumentosAdjuntos: archivos.value.map(file => file.name)
+            Documentos: documentosSubidos  //URLs reales de Cloudinary
         });
         console.log(response.data);
 
@@ -196,6 +219,8 @@ async function crearRegistro() {
                         v-model="tipoContribuyente"
                         :options="tipoContribuyenteOptions"
                         label="Tipo de Contribuyente"
+                        emit-value
+                        map-options
                     />
                     <div style="width: 48%; display: flex; flex-direction: column; gap: 8px;">
                         <q-checkbox

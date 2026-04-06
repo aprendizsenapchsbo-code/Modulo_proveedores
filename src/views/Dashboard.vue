@@ -21,6 +21,16 @@ const cumplimiientoGeneral = ref(0);
 const nitEdit = ref('');
 const razonSocialEdit = ref('');
 const correoEdit = ref('');
+const direccionNotificacionEdit = ref('');
+const telefonoEdit = ref('');
+const ciudadEdit = ref('');
+const nombreRepresentanteEdit = ref('');
+const numeroIdentificacionEdit = ref('');
+const telefonoRepresentanteEdit = ref('');
+const correoElectronicoRepresentanteEdit = ref('');
+const nombresApellidosResponsableEdit = ref('');
+const correoElectronicoResponsableEdit = ref('');
+
 const estadoEdit = ref('');
 const proveedorEditando = ref(null);
 
@@ -45,7 +55,7 @@ const optionsTipo = [
     'Servicio', 'Bien', 'Servicio/Bien'
 ]
 const optionsEstado = [
-    'Actualizado', 'Pendiente Actualización', 'Incativo'
+    'Pre-registro', 'Registrado', 'Actualizado', 'Pendiente Actualización', 'Inactivo'
 ]
 
 function logout() {
@@ -66,6 +76,15 @@ function abrirModalEditar(proveedor) {
     nitEdit.value = proveedor.NIT;
     razonSocialEdit.value = proveedor.RazonSocial;
     correoEdit.value = proveedor.CorreoElectronico;
+    direccionNotificacionEdit.value = proveedor.DireccionNotificacion;
+    telefonoEdit.value = proveedor.Telefono;
+    ciudadEdit.value = proveedor.Ciudad;
+    nombreRepresentanteEdit.value = proveedor.NombreRepresentante;
+    numeroIdentificacionEdit.value = proveedor.NumeroIdentificacion;
+    telefonoRepresentanteEdit.value = proveedor.TelefonoRepresentante;
+    correoElectronicoRepresentanteEdit.value = proveedor.CorreoElectronicoRepresentante;
+    nombresApellidosResponsableEdit.value = proveedor.NombresApellidosResponsable;
+    correoElectronicoResponsableEdit.value = proveedor.CorreoElectronicoResponsable;
     estadoEdit.value = proveedor.estadoProveedor;
     persistentEdit.value = true;
 }
@@ -77,7 +96,7 @@ async function enviarInvitacion() {
     loading.value = true
     try {
 
-        const respuesta = await axios.post('https://modulo-proveedores-backend.vercel.app/api/proveedor/registro', {
+        const respuesta = await axios.post('http://localhost:3001/api/proveedor/registro', {
             CorreoElectronico: CorreoElectronico.value
         })
 
@@ -260,6 +279,15 @@ async function editarProveedor() {
             NIT: nitEdit.value,
             RazonSocial: razonSocialEdit.value,
             CorreoElectronico: correoEdit.value,
+            DireccionNotificacion: direccionNotificacionEdit.value,
+            Telefono: telefonoEdit.value,
+            Ciudad: ciudadEdit.value,
+            NombreRepresentante: nombreRepresentanteEdit.value,
+            NumeroIdentificacion: numeroIdentificacionEdit.value,
+            TelefonoRepresentante: telefonoRepresentanteEdit.value,
+            CorreoElectronicoRepresentante: correoElectronicoRepresentanteEdit.value,
+            NombresApellidosResponsable: nombresApellidosResponsableEdit.value,
+            CorreoElectronicoResponsable: correoElectronicoResponsableEdit.value,
             estadoProveedor: estadoEdit.value
         }, {
             /* headers: {
@@ -455,6 +483,42 @@ async function solicitarActualizacionProveedor(proveedor) {
 
                                 <div class="q-mb-md">
                                     <q-input filled v-model="correoEdit" label="Correo Electrónico" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="direccionNotificacionEdit" label="Dirección de Notificación" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="telefonoEdit" label="Teléfono" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="ciudadEdit" label="Ciudad" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="nombreRepresentanteEdit" label="Nombre del Representante" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="numeroIdentificacionEdit" label="Número de Identificación" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="telefonoRepresentanteEdit" label="Teléfono del Representante" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="correoElectronicoRepresentanteEdit" label="Correo Electrónico del Representante" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="nombresApellidosResponsableEdit" label="Nombres y Apellidos del Responsable" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="correoElectronicoResponsableEdit" label="Correo Electrónico del Responsable" />
                                 </div>
 
                                 <div class="q-mb-md">
