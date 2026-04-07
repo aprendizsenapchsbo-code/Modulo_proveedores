@@ -7,6 +7,7 @@ import { router } from '../routes/router.js';
 
 const proveedorStore = useProveedorStore();
 const nit = ref('');
+const dv = ref('');
 const dvOpciones = [
     { label: '0', value: '0' },
     { label: '1', value: '1' },
@@ -24,9 +25,20 @@ const direccionNotificacion = ref('');
 const telefono = ref('');
 const ciudad = ref('');
 const nombreRepresentante = ref('');
+const tipoDocumentoRepresentante = ref('');
+const tipoDocumentoOptions = [
+    { label: 'Cédula de Ciudadanía', value: 'Cédula de Ciudadnía' },
+    { label: 'Cédula de Extranjería', value: 'Cédula de Extranjería' },
+    { label: 'Pasaporte', value: 'Pasaporte' },
+    { label: 'Otro', value: 'Otro' },
+]
 const numeroIdentificacion = ref('');
 const telefonoRepresentante = ref('');
 const correoElectronicoRepresentante = ref('');
+const nombreRepresentanteComercial = ref('');
+const cargoRepresentanteComercial = ref('');
+const telefonoRepresentanteComercial = ref('');
+const correoElectronicoRepresentanteComercial = ref('');
 const nombresApellidosResponsable = ref('');
 const correoElectronicoResponsable = ref('');
 const tipoContribuyente = ref('');
@@ -34,6 +46,14 @@ const tipoContribuyenteOptions = [
     { label: 'Persona Natural', value: 'Persona Natural' },
     { label: 'Persona Jurídica', value: 'Persona Jurídica' }
 ];
+const tipoProveedor = ref('');
+const tipoProveedorOptions = [
+    { label: 'Ferretería', value: 'Ferretería' },
+    { label: 'Materiales de Construcción', value: 'Materiales de Construcción' },
+    { label: 'Servicios Generales', value: 'Servicios Generales' },
+    { label: 'Suministros Industriales', value: 'Suministros Industriales' },
+    { label: 'Tecnología y Equipos', value: 'Tecnología y Equipos' },
+]
 const autorizaDatosPersonales = ref(false);
 const autorizaConflictos = ref(false);
 const archivos = ref([]);
@@ -52,9 +72,14 @@ async function limpiarFormulario() {
     telefono.value = '';
     ciudad.value = '';
     nombreRepresentante.value = '';
+    tipoDocumentoRepresentante.value = '';
     numeroIdentificacion.value = '';
     telefonoRepresentante.value = '';
     correoElectronicoRepresentante.value = '';
+    nombreRepresentanteComercial.value = '';
+    cargoRepresentanteComercial.value = '';
+    telefonoRepresentanteComercial.value = '';
+    correoElectronicoRepresentanteComercial.value = '';
     nombresApellidosResponsable.value = '';
     correoElectronicoResponsable.value = '';
     tipoContribuyente.value = '';
@@ -106,9 +131,14 @@ async function crearRegistro() {
             Telefono: telefono.value,
             Ciudad: ciudad.value,
             NombreRepresentante: nombreRepresentante.value,
+            TipoDocuemntoRepresentante: tipoDocumentoRepresentante.value,
             NumeroIdentificacion: numeroIdentificacion.value,
             TelefonoRepresentante: telefonoRepresentante.value,
             CorreoElectronicoRepresentante: correoElectronicoRepresentante.value,
+            NombreRepresentanteComercial: nombreRepresentanteComercial.value,
+            CargoRepresentanteComercial: cargoRepresentanteComercial.value,
+            TelefonoRepresentanteComercial: telefonoRepresentanteComercial.value,
+            CorreoElectronicoRepresentanteComercial: correoElectronicoRepresentanteComercial.value,
             NombresApellidosResponsable: nombresApellidosResponsable.value,
             CorreoElectronicoResponsable: correoElectronicoResponsable.value,
             TipoContribuyente: tipoContribuyente.value,
@@ -154,16 +184,16 @@ async function crearRegistro() {
                 <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <q-input
                         class="inputNit"
-                        style="width: 38%;"
+                        style="width: 42%;"
                         filled
                         v-model="nit"
                         label="Número de Identificación Tributaria (NIT)"
                     />
                     <q-select
                         class="inputCV"
-                        style="width: 3%;"
+                        style="width: 6%; font-size: 12px;"
                         filled
-                        v-model="cv"
+                        v-model="dv"
                         :options="dvOpciones"
                         label="DV"
                         emit-value
@@ -209,6 +239,13 @@ async function crearRegistro() {
                         v-model="nombreRepresentante"
                         label="Nombre del Representante Legal"
                     />
+                    <q-select
+                        style="width: 48%;"
+                        filled
+                        v-model="tipoDocumentoRepresentante"
+                        :options="tipoDocumentoOptions"
+                        label="Tipo de Documento del Representante"
+                    />
                     <q-input
                         style="width: 48%;"
                         filled
@@ -226,6 +263,35 @@ async function crearRegistro() {
                         filled
                         v-model="correoElectronicoRepresentante"
                         label="Correo Electrónico del Representante"
+                        type="email"
+                    />
+                </div>
+
+                <p class="text-h5 text-secondary q-pt-md q-pb-md">Información del Representante Comercial</p>
+                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="nombreRepresentanteComercial"
+                        label="Nombre del Representante Comercial"
+                    />
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="cargoRepresentanteComercial"
+                        label="Cargo del Representante Comercial"
+                    />
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="telefonoRepresentanteComercial"
+                        label="Teléfono del Representante Comercial"
+                    />
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="correoElectronicoRepresentanteComercial"
+                        label="Correo Electrónico del Representante Comercial"
                         type="email"
                     />
                 </div>
@@ -255,6 +321,15 @@ async function crearRegistro() {
                         v-model="tipoContribuyente"
                         :options="tipoContribuyenteOptions"
                         label="Tipo de Contribuyente"
+                        emit-value
+                        map-options
+                    />
+                    <q-select
+                        style="width: 48%;"
+                        filled
+                        v-model="tipoProveedor"
+                        :options="tipoProveedorOptions"
+                        label="Tipo de Proveedor"
                         emit-value
                         map-options
                     />
