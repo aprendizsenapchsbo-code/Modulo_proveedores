@@ -146,7 +146,7 @@ const columns = [
       label: 'Dirección de notificación', 
       field: 'DireccionNotificacion', 
       sortable: true 
-    },
+    }, */
     { 
       name: 'Telefono', 
       label: 'Teléfono', 
@@ -156,7 +156,7 @@ const columns = [
       name: 'Ciudad', 
       label: 'Ciudad', 
       field: 'Ciudad' 
-    }, */
+    },
     {
         name: 'CorreoElectronico',
         label: 'Correo Electrónico',
@@ -218,7 +218,7 @@ const rows = ref([]);
 async function obtenerProveedores() {
     loading.value = true;
     try {
-        const response = await axios.get('https://modulo-proveedores-backend.vercel.app/api/proveedor', {
+        const response = await axios.get('http://localhost:3001/api/proveedor', {
             /* headers: {
                 Authorization: `Bearer ${proveedorStore.tokenRegistro}`
             } */

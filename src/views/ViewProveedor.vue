@@ -3,9 +3,22 @@ import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import { useProveedorStore } from '../stores/proveedor.js';
 import { exitoNotify, errorNotify } from '../composables/Notify.js';
+import { router } from '../routes/router.js';
 
 const proveedorStore = useProveedorStore();
 const nit = ref('');
+const dvOpciones = [
+    { label: '0', value: '0' },
+    { label: '1', value: '1' },
+    { label: '2', value: '2' },
+    { label: '3', value: '3' },
+    { label: '4', value: '4' },
+    { label: '5', value: '5' },
+    { label: '6', value: '6' },
+    { label: '7', value: '7' },
+    { label: '8', value: '8' },
+    { label: '9', value: '9' },
+];
 const razonSocial = ref('');
 const direccionNotificacion = ref('');
 const telefono = ref('');
@@ -34,6 +47,7 @@ onMounted(() => {
 async function limpiarFormulario() {
     nit.value = '';
     razonSocial.value = '';
+    cv.value = '';
     direccionNotificacion.value = '';
     telefono.value = '';
     ciudad.value = '';
@@ -76,7 +90,7 @@ async function crearRegistro() {
                 formData.append('tipo', archivo.name.split('.')[0]); //nombre del archivo como tipo
 
                 const res = await axios.post(
-                    'https://modulo-proveedores-backend.vercel.app/api/proveedor/upload',
+                    'http://localhost:3001/api/proveedor/upload',
                     formData,
                     { headers: { 'Content-Type': 'multipart/form-data'}}
                 );
@@ -84,8 +98,9 @@ async function crearRegistro() {
             })
         );
 
-        const response = await axios.post(`https://modulo-proveedores-backend.vercel.app/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
+        const response = await axios.post(`http://localhost:3001/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
             NIT: nit.value,
+            CV: cv.value,
             RazonSocial: razonSocial.value,
             DireccionNotificacion: direccionNotificacion.value,
             Telefono: telefono.value,
@@ -112,6 +127,8 @@ async function crearRegistro() {
         limpiarFormulario();
 
         exitoNotify('Registro creado exitosamente');
+        // Redirigir a la pantalla de éxito
+        router.push('/registro-exitoso');
     } catch (error) {
         console.error('Error al guardar el registro', error)
         errorNotify(error.response?.data?.msg || 'Error al guardar el registro')
@@ -137,11 +154,22 @@ async function crearRegistro() {
                 <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <q-input
                         class="inputNit"
-                        style="width: 48%;"
+                        style="width: 38%;"
                         filled
                         v-model="nit"
                         label="Número de Identificación Tributaria (NIT)"
                     />
+                    <q-select
+                        class="inputCV"
+                        style="width: 3%;"
+                        filled
+                        v-model="cv"
+                        :options="dvOpciones"
+                        label="DV"
+                        emit-value
+                        map-options>
+                        
+                    </q-select>
                     <q-input
                         class="inputRazonSocial"
                         style="width: 48%;"
@@ -242,7 +270,7 @@ async function crearRegistro() {
 
                         <q-checkbox
                             v-model="autorizaConflictos"
-                            label="Autorizo la declaración de conflictos e intereses"
+                            label="Confirmo que he leído y acepto la declaración de conflictos de intereses"
                             :color="!autorizaConflictos ? 'negative' : 'primary'"
                         />
                         <span v-if="intentoEnviar && !autorizaConflictos" style="color: red; font-size: 12px;">
