@@ -18,21 +18,32 @@ const cumplimiientoGeneral = ref(0);
 
 
 // Refs para editar
-const nitEdit = ref('');
+/* const nitEdit = ref('');
+const dvEdit = ref('');
 const razonSocialEdit = ref('');
 const correoEdit = ref('');
 const direccionNotificacionEdit = ref('');
 const telefonoEdit = ref('');
 const ciudadEdit = ref('');
 const nombreRepresentanteEdit = ref('');
+const tipoDocumentoRepresentanteEdit = ref('');
 const numeroIdentificacionEdit = ref('');
 const telefonoRepresentanteEdit = ref('');
 const correoElectronicoRepresentanteEdit = ref('');
+const nombreRepresentanteComercialEdit = ref('');
+const cargoRepresentanteComercialEdit = ref('');
+const telefonoRepresentanteComercialEdit = ref('');
+const correoElectronicoRepresentanteComercialEdit = ref('');
 const nombresApellidosResponsableEdit = ref('');
 const correoElectronicoResponsableEdit = ref('');
+const tipoContribuyenteEdit = ref('');
+const tipoProveedorEdit = ref('');
+const documentosEdit = ref([]);
 
 const estadoEdit = ref('');
-const proveedorEditando = ref(null);
+const proveedorEditando = ref(null); */
+
+const formDataEdit = ref({});
 
 onMounted(() => {
     console.log('Usuario en store:', usuarioStore.usuario);
@@ -70,22 +81,96 @@ function logout() {
 const persistent = ref(false);
 const persistentEdit = ref(false);
 
+const getFormatoDeUrl = (url) => {
+    if (!url) return '';
+    // La URL de Cloudinary termina en /nombre.extension
+    return url.split('.').pop()?.split('?')[0]?.toLowerCase() || '';
+};
+
+// Función para determinar el icono según la extensión del archivo
+const getIconDocumento = (nombreArchivo, formato = '', url = '') => {
+    const extensionNombre = nombreArchivo?.split('.').pop()?.toLowerCase();
+    const extensionUrl = getFormatoDeUrl(url);
+    
+    const extension = formato || extensionNombre || extensionUrl;
+
+    const iconos = {
+        pdf: 'picture_as_pdf',
+        jpg: 'image', jpeg: 'image', png: 'image', webp: 'image',
+        doc: 'description', docx: 'description',
+        xls: 'table_chart', xlsx: 'table_chart',
+        zip: 'folder_zip', rar: 'folder_zip'
+    };
+    return iconos[extension] || 'attach_file';
+};
+
+// Función para color según tipo de documento
+const getColorDocumento = (tipo) => {
+    const colores = {
+        'COPIA DE RUT COMPLETO': 'primary',
+        'COPIA DE CÁMARA COMERCIO VIGENTE (Menor a 90 días)': 'secondary',
+        'CERTIFICACION BANCARIA': 'positive',
+        'COPIA DE DOCUMENTO DE IDENTIFICACION': 'warning',
+        'COPIA DE DOCUMENTO DE IDENTIFICACION DEL REPRESENTANTE LEGAL': 'warning',
+        '2 CERTIFICADOS COMERCIALES': 'info',
+        'ESTADOS FINANCIEROS COMPARATIVOS DE LOS (2) ÚLTIMOS AÑOS.': 'negative'
+    };
+    return colores[tipo] || 'grey-7';
+};
+
+// Función para abrir el documento en una nueva pestaña
+const abrirDocumento = (url) => {
+    if (!url) {
+        errorNotify('URL del documento no disponible')
+        return;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+};
+
+// Función para forzar la descarga del documento
+const descargarDocumento = (url, nombre) => {
+    if (!url) {
+        errorNotify('URL del documento no disponible')
+        return;
+    }
+    // Crear link temporal para forzar descarga
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nombre || 'documento';
+    link.target = 'noopener,noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link)
+};
+
 // Función para abrir el modal de edición con datos precargados
 function abrirModalEditar(proveedor) {
-    proveedorEditando.value = proveedor;
+    /* proveedorEditando.value = proveedor;
     nitEdit.value = proveedor.NIT;
+    dvEdit.value = proveedor.DV;
     razonSocialEdit.value = proveedor.RazonSocial;
     correoEdit.value = proveedor.CorreoElectronico;
     direccionNotificacionEdit.value = proveedor.DireccionNotificacion;
     telefonoEdit.value = proveedor.Telefono;
     ciudadEdit.value = proveedor.Ciudad;
     nombreRepresentanteEdit.value = proveedor.NombreRepresentante;
+    tipoDocumentoRepresentanteEdit = proveedor.TipoDocumentoRepresentante;
     numeroIdentificacionEdit.value = proveedor.NumeroIdentificacion;
     telefonoRepresentanteEdit.value = proveedor.TelefonoRepresentante;
     correoElectronicoRepresentanteEdit.value = proveedor.CorreoElectronicoRepresentante;
+    nombreRepresentanteComercialEdit.value = proveedor.NombreRepresentanteComercial;
+    cargoRepresentanteComercialEdit.value = proveedor.CargoRepresentanteComercial;
+    telefonoRepresentanteComercialEdit.value = proveedor.TelefonoRepresentanteComercial;
+    correoElectronicoRepresentanteComercialEdit.value = proveedor.CorreoElectronicoRepresentanteComercial;
     nombresApellidosResponsableEdit.value = proveedor.NombresApellidosResponsable;
     correoElectronicoResponsableEdit.value = proveedor.CorreoElectronicoResponsable;
+    tipoContribuyenteEdit.value = proveedor.TipoContribuyente;
+    tipoProveedorEdit.value = proveedor.TipoProveedor;
+    documentosEdit.value = proveedor.Documentos;
     estadoEdit.value = proveedor.estadoProveedor;
+    persistentEdit.value = true; */
+
+    formDataEdit.value = {...proveedor};
     persistentEdit.value = true;
 }
 
@@ -96,7 +181,7 @@ async function enviarInvitacion() {
     loading.value = true
     try {
 
-        const respuesta = await axios.post('https://modulo-proveedores-backend.vercel.app/api/proveedor/registro', {
+        const respuesta = await axios.post('http://localhost:3001/api/proveedor/registro', {
             CorreoElectronico: CorreoElectronico.value
         })
 
@@ -275,25 +360,37 @@ async function editarProveedor() {
             return;
         }
 
-        const r = await axios.put(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${proveedor._id}`, {
-            NIT: nitEdit.value,
+        const { _id, ...datosParaActualizar } = formDataEdit.value;
+
+        
+        const r = await axios.put(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${_id}`, datosParaActualizar);
+            /*NIT: nitEdit.value,
+            DV: dvEdit.value,
             RazonSocial: razonSocialEdit.value,
             CorreoElectronico: correoEdit.value,
             DireccionNotificacion: direccionNotificacionEdit.value,
             Telefono: telefonoEdit.value,
             Ciudad: ciudadEdit.value,
             NombreRepresentante: nombreRepresentanteEdit.value,
+            TipoDocumentoRepresentante: tipoDocumentoRepresentanteEdit.value,
             NumeroIdentificacion: numeroIdentificacionEdit.value,
             TelefonoRepresentante: telefonoRepresentanteEdit.value,
             CorreoElectronicoRepresentante: correoElectronicoRepresentanteEdit.value,
+            NombreRepresentanteComercial: nombreRepresentanteComercialEdit.value,
+            CargoRepresentanteComercial: cargoRepresentanteComercialEdit.value,
+            TelefonoRepresentanteComercial: telefonoRepresentanteComercialEdit.value,
+            CorreoElectronicoRepresentanteComercial: correoElectronicoRepresentanteComercialEdit.value,
             NombresApellidosResponsable: nombresApellidosResponsableEdit.value,
             CorreoElectronicoResponsable: correoElectronicoResponsableEdit.value,
+            TipoContribuyente: tipoContribuyenteEdit.value,
+            TipoProveedor: tipoProveedorEdit.value,
+            Documentos: documentosEdit.value,
             estadoProveedor: estadoEdit.value
         }, {
             /* headers: {
                 Authorization: `Bearer ${proveedorStore.tokenRegistro}`
-            } */
-        });
+            }
+        }); */
         console.log('Proveedor actualizado', r.data);
         exitoNotify('Proveedor actualizado exitosamente');
         persistentEdit.value = false;
@@ -473,56 +570,167 @@ async function solicitarActualizacionProveedor(proveedor) {
                                 <p class="text-h5 text-secondary q-pb-md">Información General</p>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="nitEdit"
+                                    <q-input filled v-model="formDataEdit.NIT"
                                         label="Número de Identificación Tributaria (NIT)" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="razonSocialEdit" label="Razón Social" />
+                                    <q-input filled v-model="formDataEdit.RazonSocial" label="Razón Social" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="correoEdit" label="Correo Electrónico" />
+                                    <q-input filled v-model="formDataEdit.CorreoElectronico" label="Correo Electrónico" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="direccionNotificacionEdit" label="Dirección de Notificación" />
+                                    <q-input filled v-model="formDataEdit.DireccionNotificacion" label="Dirección de Notificación" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="telefonoEdit" label="Teléfono" />
+                                    <q-input filled v-model="formDataEdit.Telefono" label="Teléfono" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="ciudadEdit" label="Ciudad" />
+                                    <q-input filled v-model="formDataEdit.Ciudad" label="Ciudad" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="nombreRepresentanteEdit" label="Nombre del Representante" />
+                                    <q-input filled v-model="formDataEdit.NombreRepresentante" label="Nombre del Representante" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="numeroIdentificacionEdit" label="Número de Identificación" />
+                                    <q-select 
+                                        filled 
+                                        v-model="formDataEdit.TipoDocumentoRepresentante" 
+                                        :options="['Cédula de Ciudadanía', 'Cédula de Extranjería', 'Pasaporte', 'Otro']" 
+                                        label="Tipo de Documento del Representante" 
+                                        emit-value
+                                        map-options
+                                    />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="telefonoRepresentanteEdit" label="Teléfono del Representante" />
+                                    <q-input filled v-model="formDataEdit.NumeroIdentificacion" label="Número de Identificación" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="correoElectronicoRepresentanteEdit" label="Correo Electrónico del Representante" />
+                                    <q-input filled v-model="formDataEdit.TelefonoRepresentante" label="Teléfono del Representante" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="nombresApellidosResponsableEdit" label="Nombres y Apellidos del Responsable" />
+                                    <q-input filled v-model="formDataEdit.CorreoElectronicoRepresentante" label="Correo Electrónico del Representante" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-input filled v-model="correoElectronicoResponsableEdit" label="Correo Electrónico del Responsable" />
+                                    <q-input filled v-model="formDataEdit.NombreRepresentanteComercial" label="Nombres y Apellidos del Representante Comercial" />
                                 </div>
 
                                 <div class="q-mb-md">
-                                    <q-select filled v-model="estadoEdit" :options="optionsEstado" label="Estado" />
+                                    <q-input filled v-model="formDataEdit.CargoRepresentanteComercial" label="Cargo del Representante Comercial" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="formDataEdit.TelefonoRepresentanteComercial" label="Teléfono del Representante Comercial" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="formDataEdit.CorreoElectronicoRepresentanteComercial" label="Correo Electrónico del Representante Comercial" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="formDataEdit.NombresApellidosResponsable" label="Nombres y Apellidos del Responsable" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-input filled v-model="formDataEdit.CorreoElectronicoResponsable" label="Correo Electrónico del Responsable" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-select 
+                                    filled 
+                                    v-model="formDataEdit.TipoContribuyente" 
+                                    :options="['Persona Natural', 'Persona Jurídica']"
+                                    label="Tipo de Contribuyente" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-select 
+                                    filled 
+                                    v-model="formDataEdit.TipoProveedor"
+                                    :options="['Ferretería', 'Materiales de Construcción', 'Servicios Generales', 'Suministros Industriales', 'Tecnología y Equipos', 'Diseño de obras civiles', 'Otro']" 
+                                    label="Tipo de Proveedor" />
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <p class="text-subtitle2 text-secondary q-mb-sm">Documentos Cargados</p>
+
+                                    <!-- Lista de documentos -->
+                                    <q-list bordered separator class="rounded-borders bg-grey-1">
+                                        <!-- Caso: No hay documentos -->
+                                         <q-item v-if="!formDataEdit.Documentos || formDataEdit.Documentos.length === 0">
+                                            <q-item-section>
+                                                <q-item-label class="text-grey-7">Sin documentos cargados</q-item-label>
+                                            </q-item-section>
+                                         </q-item>
+
+                                         <!-- Caso: Si hay documentos -->
+                                          <q-item
+                                            v-for="(doc, index) in formDataEdit.Documentos"
+                                            :key="index"
+                                            class="q-py-sm"
+                                            >
+                                            <!-- Icono según tipo de archivo -->
+                                             <q-item-section avatar>
+                                                <q-icon
+                                                    :name="getIconDocumento(doc.nombre, doc.formato, doc.url)"
+                                                    :color="getColorDocumento(doc.tipo)"
+                                                    size="24px"
+                                                />
+                                             </q-item-section>
+
+                                            <!-- Info del documento -->
+                                             <q-item-section>
+                                                <q-item-label class="text-weight-bold text-accent">{{ doc.tipo }}</q-item-label>
+                                                <q-item-label caption class="text-grey-7">{{ doc.nombre }}</q-item-label>
+                                             </q-item-section>
+
+                                             <!-- Acciones: Ver/Descargar -->
+                                              <q-item-section side>
+                                                <q-btn-group flat>
+                                                    <q-btn
+                                                        flat
+                                                        round
+                                                        dense
+                                                        icon="visibility"
+                                                        color="primary"
+                                                        @click="abrirDocumento(doc.url)"
+                                                    >
+                                                    <q-tooltip>Ver documento</q-tooltip>
+                                                    </q-btn>
+                                                    <q-btn
+                                                        flat
+                                                        round
+                                                        dense
+                                                        icon="download"
+                                                        color="secondary"
+                                                        @click="descargarDocumento(doc.url, doc.nombre)"
+                                                    >
+                                                    <q-tooltip>Descargar</q-tooltip>
+                                                    </q-btn>
+                                                </q-btn-group>
+                                              </q-item-section>
+                                        </q-item>
+
+                                    </q-list>
+
+                                    <!-- Nota informativa -->
+                                    <p class="text-caption text-grey-6 q-mt-xs">
+                                    💡 Para modificar documentos, contacta al proveedor para que actualice su registro.
+                                    </p>
+                                </div>
+
+                                <div class="q-mb-md">
+                                    <q-select filled v-model="formDataEdit.estadoProveedor" :options="optionsEstado" label="Estado" />
                                 </div>
                             </q-card-section>
 
@@ -655,5 +863,24 @@ async function solicitarActualizacionProveedor(proveedor) {
 
 .filtros .btnRegistrarProveedor {
     margin-left: auto;
+}
+
+:deep(.q-item) {
+    transition: background-color 0.2s ease;
+    
+    &:hover {
+        background-color: #f5f5f5 !important;
+    }
+}
+
+:deep(.q-item__section--avatar) {
+    min-width: 40px;
+}
+
+:deep(.q-item__label--caption) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
 }
 </style>

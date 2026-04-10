@@ -1,11 +1,13 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { useProveedorStore } from '../stores/proveedor.js';
+import { useAprobarPreRegistroStore } from '../stores/aprobarPreRegistro.js';
 import { exitoNotify, errorNotify } from '../composables/Notify.js';
 import { router } from '../routes/router.js';
 
 const proveedorStore = useProveedorStore();
+const aprobacionPreRegistroStore = useAprobarPreRegistroStore();
 const nit = ref('');
 const dv = ref('');
 const dvOpciones = [
@@ -63,11 +65,19 @@ const autorizaConflictos = ref(false);
 const firmaAceptadaDatosPersonales = ref(false);
 const firmaAceptadaConflictos = ref(false);
 
+// Fechas para los documentos de autorización de datos personales y conflictos de intereses
+const fechaFirmaDatos = ref('');
+const fechaFirmaConflictos = ref('');
+
 // Variables para controlar si el dialogo a sido abierto
 const dialogDatosAbierto = ref(false);
 const dialogConflictosAbierto = ref(false);
 
-const archivos = ref([]);
+const documentosRequeridos = ref([]);
+
+// Array para almacenar los documentos obligatorios según el tipo de contribuyente
+const documentosObligatorios = ref([]);
+
 const loading = ref(false);
 const intentoEnviar = ref(false);
 
@@ -84,10 +94,14 @@ onMounted(() => {
     console.log('Token proveedor en store:', proveedorStore.tokenRegistro);
 })
 
+watch (tipoContribuyente, () => {
+    obtenerDocumentosObligatorios();
+})
+
 async function limpiarFormulario() {
     nit.value = '';
     razonSocial.value = '';
-    cv.value = '';
+    dv.value = '';
     direccionNotificacion.value = '';
     telefono.value = '';
     ciudad.value = '';
@@ -103,11 +117,14 @@ async function limpiarFormulario() {
     nombresApellidosResponsable.value = '';
     correoElectronicoResponsable.value = '';
     tipoContribuyente.value = '';
+    tipoProveedor.value = '';
     autorizaDatosPersonales.value = false;
     autorizaConflictos.value = false;
+    firmaAceptadaDatosPersonales.value = false;
+    firmaAceptadaConflictos.value = false;
     dialogConflictosAbierto.value = false;
     dialogDatosAbierto.value = false;
-    archivos.value = [];
+    documentosRequeridos.value = [];
 }
 
 async function crearRegistro() {
@@ -120,34 +137,63 @@ async function crearRegistro() {
         loading.value = false;
         return;
     }
+
+    if (!autorizaDatosPersonales.value || !autorizaConflictos.value) {
+        errorNotify('Debe leer y aceptar ambas autorizaciones para continuar con el registro.');
+        // Abrir el diálogo que falta
+        if (!autorizaDatosPersonales.value) dialogDatos.value = true;
+        else if (!autorizaConflictos.value) dialogConflictos.value = true;
+        loading.value = false;
+        return;
+    };
     
-    //Validar que haya al menos un archivo
-    if (!archivos.value || archivos.value.length === 0) {
-        errorNotify('Debe cargar al menos un documento.');
+    //Validar que que cada documento obligatorio tenga un archivo asignado
+    const documentosFaltantes = documentosRequeridos.value.filter(d => !d.archivo);
+    if (documentosFaltantes.length > 0) {
+        errorNotify(`Faltan ${documentosFaltantes.length} documento(s) por cargar.`);
         loading.value = false;
         return;
     }
 
-    try {
-        // Subir primero los archivos a Cloudinary
-        const documentosSubidos = await Promise.all(
-            archivos.value.map(async (archivo) => {
-                const formData = new FormData();
-                formData.append('archivo', archivo);
-                formData.append('tipo', archivo.name.split('.')[0]); //nombre del archivo como tipo
+    // Subir primero los archivos a Cloudinary
+    const documentosSubidos = [];
 
-                const res = await axios.post(
-                    'http://localhost:3001/api/proveedor/upload',
-                    formData,
-                    { headers: { 'Content-Type': 'multipart/form-data'}}
-                );
-                return res.data.data;   
-            })
-        );
+    for (let i = 0; i < documentosRequeridos.value.length; i++) {
+        const doc = documentosRequeridos.value[i];
+        if(!doc.archivo) {
+            errorNotify(`Falta cargar: ${doc.tipo}`);
+            loading.value = false;
+            return;
+        }
 
+        const formData = new FormData();
+        formData.append('archivo', doc.archivo);
+        formData.append('tipo', doc.tipo);
+
+        try {
+            const res = await axios.post(
+                        'http://localhost:3001/api/proveedor/upload',
+                        formData,
+                        { headers: { 'Content-Type': 'multipart/form-data'}}
+                    );
+                    
+                    // Guardar URL y marcar como subido
+                    doc.url = res.data.data;
+                    doc.subido = true;
+                    documentosSubidos.push(res.data.data);
+    
+                    console.log(`Subido ${doc.tipo} - ${doc.archivo.name}`)
+        } catch (error) {
+            errorNotify(`Error al subir ${doc.tipo}: ${error.message}`);
+            loading.value = false;
+            return;  // Detiene todo el proceso si falla la subida de un archivo
+        }
+    }
+
+    try {       
         const response = await axios.post(`http://localhost:3001/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
             NIT: nit.value,
-            CV: cv.value,
+            DV: dv.value,
             RazonSocial: razonSocial.value,
             DireccionNotificacion: direccionNotificacion.value,
             Telefono: telefono.value,
@@ -164,23 +210,15 @@ async function crearRegistro() {
             NombresApellidosResponsable: nombresApellidosResponsable.value,
             CorreoElectronicoResponsable: correoElectronicoResponsable.value,
             TipoContribuyente: tipoContribuyente.value,
+            TipoProveedor: tipoProveedor.value,
             AutorizaDatosPersonales: autorizaDatosPersonales.value,
             AutorizaConflictos: autorizaConflictos.value,
             Documentos: documentosSubidos  //URLs reales de Cloudinary
         });
         console.log(response.data);
 
-        if (!autorizaDatosPersonales.value || !autorizaConflictos.value) {
-            errorNotify('Debe aceptar ambas autorizaciones para continuar con el registro.');
-            loading.value = false;
-            return;
-        };
-
-        if (!firmaAceptadaDatosPersonales.value || !firmaAceptadaConflictos.value) {
-            errorNotify('Debe firmar ambas autorizaciones para continuar con el registro.');
-            loading.value = false;
-            return;
-        }
+        aprobacionPreRegistroStore.setIdProveedor(response.data._id);
+        aprobacionPreRegistroStore.setPreRegistroAprobar(response.data);
 
         limpiarFormulario();
 
@@ -200,36 +238,105 @@ const manejarClickCheckbox = (val, tipo) => {
     if (val === false) {
         if (tipo === 'datos') {
             autorizaDatosPersonales.value = false;
+            firmaAceptadaDatosPersonales.value = false; // Reiniciar la firma si se desmarca
         } else {
             autorizaConflictos.value = false;
+            firmaAceptadaConflictos.value = false; // Reiniciar la firma si se desmarca
         }
         return;
     }
+
     // Si el checkbox se marca, verificar si el diálogo ya ha sido abierto antes
     if (tipo === 'datos') {
-        if (!dialogDatosAbierto.value) {
-            dialogDatos.value = true;
-        } else {
-            autorizaDatosPersonales.value = true; // Ya lo vio, permitir marcar
-        }
+        dialogDatos.value = true;
+        errorNotify('Por favor lea y firme la autorización dentro del diálogo');
     } else {
-        if (!dialogConflictosAbierto.value) {
-            dialogConflictos.value = true;
-        } else {
-            autorizaConflictos.value = true; // Ya lo vio, permitir marcar
-        }
+        dialogConflictos.value = true;
+        errorNotify('Por favor lea y firme la autorización dentro del diálogo');
+
     }
 };
 
+const onDialogDatosOpen = () => {
+    fechaFirmaDatos.value = new Date().toLocaleString('es-CO', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    })
+}
+
+const onDialogConflictosOpen = () => {
+    fechaFirmaConflictos.value = new Date().toLocaleString('es-CO', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    })
+}
+
+// Función para aceptar explicitamente
+const aceptarYCerrarDatos = () => {
+    if (!firmaAceptadaDatosPersonales.value) {
+        errorNotify('Debe marcar la casilla de firma para aceptar');
+        return;
+    }
+    dialogDatosAbierto.value = true;
+    autorizaDatosPersonales.value = true;
+    dialogDatos.value = false;
+}
+
+const aceptarYCerrarConflictos = () => {
+    if (!firmaAceptadaConflictos.value) {
+        errorNotify('Debe marcar la casilla de firma para aceptar');
+        return;
+    }
+    dialogConflictosAbierto.value = true;
+    autorizaConflictos.value = true;
+    dialogConflictos.value = false;
+}
+
 const onDialogDatosClose = () => {
     dialogDatosAbierto.value = true; // Marcar que el diálogo de datos ha sido abierto
-    autorizaDatosPersonales.value = true; // Permitir marcar el checkbox después de cerrar el diálogo
 };
 
 const onDialogConflictosClose = () => {
     dialogConflictosAbierto.value = true; // Marcar que el diálogo de conflictos ha sido abierto
-    autorizaConflictos.value = true; // Permitir marcar el checkbox después de cerrar el diálogo
 };
+
+function obtenerDocumentosObligatorios() {
+    let docs = [];
+
+    if (tipoContribuyente.value === 'Persona Jurídica') {
+        docs = [
+            'COPIA DE RUT COMPLETO',
+            'COPIA DE CÁMARA COMERCIO VIGENTE (Menor a 90 días)',
+            'COPIA DE DOCUMENTO DE IDENTIFICACION DEL REPRESENTANTE LEGAL',
+            'CERTIFICACION BANCARIA',
+            '2 CERTIFICADOS COMERCIALES',
+            'ESTADOS FINANCIEROS COMPARATIVOS DE LOS (2) ÚLTIMOS AÑOS.'
+        ];
+    } else if (tipoContribuyente.value === 'Persona Natural') {
+        docs = [
+            'COPIA DE RUT COMPLETO',
+            'COPIA DE DOCUMENTO DE IDENTIFICACION',
+            'CERTIFICACION BANCARIA',
+        ];
+    }
+
+    // Crear estructura con estado por documento
+    documentosRequeridos.value = docs.map(tipo => ({
+        tipo,
+        archivo: null,
+        url: null,
+        subido: false
+    }));
+
+    console.log('documentosRequeridos inicializado:', documentosRequeridos.value);
+    
+}
 
 </script>
 
@@ -449,17 +556,91 @@ const onDialogConflictosClose = () => {
 
                 <div class="q-mt-md" style="display: flex; flex-direction: column; gap: 12px;">
                     <p class="text-h6 text-secondary">Carga de Documentos</p>
-                    <q-file
-                        filled
-                        bottom-slots
-                        v-model="archivos"
-                        multiple
-                        hide-upload-btn
-                        label="Haga clic para cargar o arrastre sus archivos"
-                        style="min-height: 140px;"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        counter
-                    />
+
+                    <!-- Lista de documentos obligatorios -->
+                    <div v-if="tipoContribuyente" class="q-pa-sm bg-blue-1 rounded-borders">
+                        <p class="text-weight-bold text-primary q-mb-xs">Documentos requeridos</p>
+
+                        <div v-for="(doc, index) in documentosRequeridos" :key="doc.tipo" class="q-ml-md">
+                            <p class="text-subtitle2 q-mb-xs">{{ doc.tipo }}</p>
+                            {{ console.log(`Renderizando: ${doc.tipo}, archivo:`, doc.archivo) }}
+
+                            <q-file 
+                                class="q-mb-lg"
+                                v-model="doc.archivo"
+                                outlined
+                                dense
+                                hide-upload-btn
+                                :label="doc.archivo ? doc.archivo.name : 'Seleccione archivo'"
+                                accept=".pdf, .jpg, .jpeg, .png"
+                                :color="doc.archivo ? 'primary' : 'grey-5'"
+                            >
+                                <template v-if="doc.archivo" #append>
+                                    <q-btn
+                                        flat
+                                        round
+                                        dense
+                                        icon="close"
+                                        color="grey"
+                                        @click="doc.archivo = null"
+                                    />
+                                </template>
+                            </q-file>
+
+                            <!-- Validación visual por campo -->
+                             <span v-if="intentoEnviar && !doc.archivo" style="color: red; font-size: 12px;">
+                                Este documento es obligatorio.
+                             </span>
+                        </div>
+                    </div>
+                    <p v-else class="text-body2 text-grey-6">
+                        Seleccione el tipo de contribuyente para ver los documentos requeridos.
+                    </p>
+
+                    <!-- <div style="">
+                        <q-file
+                            v-model="archivosTemp"
+                            @update:model-value="agregarArchivos"
+                            multiple
+                            hide-upload-btn
+                            label="Haga clic para cargar o arrastre sus archivos"
+                            style="border: 1px dashed #ccc;"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            counter
+                        />
+                    </div> -->
+
+                    <!-- Asignación de tipo por archivo -->
+                    <!-- <div v-if="archivos && archivos.length > 0">
+                        <p class="text-weight-bold text-secondary q-mt-sm">
+                            Asigne el tipo de documento para cada archivo cargado:
+                        </p>
+
+                        <div
+                            v-for="(archivo, index) in archivos"
+                            :key="index"
+                            style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;"
+                        >
+
+                        <q-icon name="descripcion" color="primary" size="24px" />
+                        <span class="text-body2" style="width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {{ archivo.name }}
+                        </span>
+                        <q-select
+                            style="width: 90%;"
+                            filled
+                            dense
+                            v-model="tiposDocumentos[index]"
+                            :options="documentosObligatorios"
+                            label="Tipo de documento"
+                            emit-value
+                            map-options
+                        />
+                        </div>
+                        <span v-if="intentoEnviar && tiposDocumentos.some(t => !t)" style="color: red; font-size: 12px;">
+                            Debe asignar el tipo a todos los documentos.
+                        </span>
+                    </div> -->
                 </div>
 
                 <div class="boton q-mt-md" style="display: flex; justify-content: flex-end;">
@@ -476,7 +657,7 @@ const onDialogConflictosClose = () => {
     </div>
 
     <!-- Diálogo de autorización de datos personales -->
-    <q-dialog v-model="dialogDatos" maximized @hide="onDialogDatosClose">
+    <q-dialog v-model="dialogDatos" maximized persistent @show="onDialogDatosOpen" @hide="onDialogDatosClose">
         <q-card style="max-width: 700px; width: 100%; margin: auto;">
             <q-card-section class="bg-primary text-white">
                 <div class="text-h6">Autorización de Datos Personales</div>
@@ -538,20 +719,33 @@ const onDialogConflictosClose = () => {
                     color="primary"
                 />
                 <p>
-                    Al aceptar, declaro que la información es verídica y doy mi consentimiento el {{ new Date().toLocaleDateString('es-CO') }} a las {{ new Date().toLocaleTimeString('es-CO') }}
+                    Al aceptar, declaro que la información es verídica y doy mi consentimiento el {{ fechaFirmaDatos || '___________________' }}
                 </p>
 
             </div>
 
             <q-card-actions align="right">
-                <q-btn flat label="Cerrar y Firmar" color="primary" :disable="!firmaAceptadaDatosPersonales" @click="dialogDatos = false"/>
+                <q-btn 
+                flat 
+                label="Cerrar sin aceptar" 
+                color="grey" 
+                v-close-popup
+                />
+
+                <q-btn
+                flat 
+                label="He leído y acepto" 
+                color="primary" 
+                :disable="!firmaAceptadaDatosPersonales"
+                @click="aceptarYCerrarDatos"
+                />
             </q-card-actions>
 
         </q-card>
     </q-dialog>
 
     <!-- Diálogo de autorización de conflictos de intereses -->
-     <q-dialog v-model="dialogConflictos" @hide="onDialogConflictosClose">
+     <q-dialog v-model="dialogConflictos" maximized persistent @show="onDialogConflictosOpen" @hide="onDialogConflictosClose">
         <q-card style="max-width: 700px; width: 100%; margin: auto;">
             <q-card-section class="bg-primary text-white">
                 <div class="text-h6">Declaración de Conflictos de Intereses</div>
@@ -595,13 +789,26 @@ const onDialogConflictosClose = () => {
                     color="primary"
                 />
                 <p>
-                    Al aceptar, declaro que la información es verídica y doy mi consentimiento el {{ new Date().toLocaleDateString('es-CO') }} a las {{ new Date().toLocaleTimeString('es-CO') }}
+                    Al aceptar, declaro que la información es verídica y doy mi consentimiento el {{ fechaFirmaConflictos || '___________________' }}
                 </p>
 
             </div>
 
             <q-card-actions align="right">
-                <q-btn flat label="Cerrar y Firmar" color="primary" :disable="!firmaAceptadaConflictos" @click="dialogConflictos = false"/>
+                <q-btn 
+                flat 
+                label="Cerrar sin aceptar" 
+                color="grey" 
+                v-close-popup
+                />
+
+                <q-btn
+                flat 
+                label="He leído y acepto" 
+                color="primary" 
+                :disable="!firmaAceptadaConflictos"
+                @click="aceptarYCerrarConflictos"
+                />
             </q-card-actions>
 
         </q-card>
