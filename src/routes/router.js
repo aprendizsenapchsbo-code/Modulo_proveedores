@@ -1,7 +1,7 @@
 import Login from "../views/Login.vue";
 import Dashboard from "../views/Dashboard.vue";
 import ViewProveedor from "../views/ViewProveedor.vue";
-import registroExitoso from "../views/registroExitoso.vue";
+import registroExitoso from "../views/RegistroExitoso.vue";
 import { createRouter, createWebHashHistory } from "vue-router";
 import { useProveedorStore } from '../stores/proveedor.js';
 
