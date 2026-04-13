@@ -206,7 +206,7 @@ async function enviarInvitacion() {
     } finally {
         loading.value = false
     }
-}
+} 
 
 // Contenido de la tabla
 // COLUMNAS
