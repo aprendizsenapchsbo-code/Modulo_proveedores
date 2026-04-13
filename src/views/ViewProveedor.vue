@@ -172,7 +172,7 @@ async function crearRegistro() {
 
         try {
             const res = await axios.post(
-                        'http://localhost:3001/api/proveedor/upload',
+                        'https://modulo-proveedores-backend.vercel.app/api/proveedor/upload',
                         formData,
                         { headers: { 'Content-Type': 'multipart/form-data'}}
                     );
@@ -191,7 +191,7 @@ async function crearRegistro() {
     }
 
     try {       
-        const response = await axios.post(`http://localhost:3001/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
+        const response = await axios.post(`https://modulo-proveedores-backend.vercel.app/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
             NIT: nit.value,
             DV: dv.value,
             RazonSocial: razonSocial.value,
