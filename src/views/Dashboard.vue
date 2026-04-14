@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUsuarioStore } from '../stores/usuario';
 import { useProveedorStore } from '../stores/proveedor.js';
@@ -16,33 +16,7 @@ const totalProveedores = ref(0);
 const totalProveedoresPendientes = ref(0);
 const cumplimiientoGeneral = ref(0);
 
-
-// Refs para editar
-/* const nitEdit = ref('');
-const dvEdit = ref('');
-const razonSocialEdit = ref('');
-const correoEdit = ref('');
-const direccionNotificacionEdit = ref('');
-const telefonoEdit = ref('');
-const ciudadEdit = ref('');
-const nombreRepresentanteEdit = ref('');
-const tipoDocumentoRepresentanteEdit = ref('');
-const numeroIdentificacionEdit = ref('');
-const telefonoRepresentanteEdit = ref('');
-const correoElectronicoRepresentanteEdit = ref('');
-const nombreRepresentanteComercialEdit = ref('');
-const cargoRepresentanteComercialEdit = ref('');
-const telefonoRepresentanteComercialEdit = ref('');
-const correoElectronicoRepresentanteComercialEdit = ref('');
-const nombresApellidosResponsableEdit = ref('');
-const correoElectronicoResponsableEdit = ref('');
-const tipoContribuyenteEdit = ref('');
-const tipoProveedorEdit = ref('');
-const documentosEdit = ref([]);
-
-const estadoEdit = ref('');
-const proveedorEditando = ref(null); */
-
+const formDataView = ref({});
 const formDataEdit = ref({});
 
 onMounted(() => {
@@ -59,11 +33,11 @@ const emailRules = [
     }
 ]
 
-const modelTipo = ref(null)
-const modelEstado = ref(null)
-const text = ref(null)
+const modelTipo = ref(null);
+const modelEstado = ref(null);
+const textBusqueda = ref('');
 const optionsTipo = [
-    'Servicio', 'Bien', 'Servicio/Bien'
+    'Ferretería y Materiales de Construcción', 'EPPs', 'Servicios Generales', 'Suministros Industriales', 'Tecnología e TI', 'Diseño de obras civiles', 'Otro'
 ]
 const optionsEstado = [
     'Pre-registro', 'Registrado', 'Actualizado', 'Pendiente Actualización', 'Inactivo'
@@ -79,6 +53,7 @@ function logout() {
 }
 
 const persistent = ref(false);
+const persistentView = ref(false);
 const persistentEdit = ref(false);
 
 const getFormatoDeUrl = (url) => {
@@ -118,6 +93,54 @@ const getColorDocumento = (tipo) => {
     return colores[tipo] || 'grey-7';
 };
 
+// Función para buscar proveedores 
+const cumpleFiltroTexto = (proveedor, textoBusqueda) => {
+    if (!textoBusqueda) return true;
+
+    const texto = textoBusqueda.toLowerCase().trim();
+    const nit = String(proveedor.NIT || '').toLowerCase();
+    const razonSocial = String(proveedor.RazonSocial || '').toLowerCase();
+
+    return nit.includes(texto) || razonSocial.includes(texto);
+}
+
+// Función para filtrar por tipo
+const cumpleFiltroTipo = (proveedor, tipoSeleccionado) => {
+    if (!tipoSeleccionado) return true;
+
+    const tipoProveedorBD = String(proveedor.TipoProveedor || '').trim().toLowerCase();
+    const tipoSelect = String(tipoSeleccionado).trim().toLowerCase();
+
+    return tipoProveedorBD === tipoSelect;
+}
+
+// Función para filtrar por estado
+const cumpleFiltroEstado = (proveedor, estadoSeleccionado) => {
+    if (!estadoSeleccionado) return true;
+
+    const estadoProveedorBD = String(proveedor.estadoProveedor || '').trim().toLowerCase();
+    const estadoSelect = String(modelEstado.value).trim().toLowerCase();
+
+    return estadoProveedorBD === estadoSelect;
+}
+
+const rowsFiltradas = computed(() => {
+    // Obtenemos los valores actuales de los inputs
+    const texto = textBusqueda.value;
+    const tipo = modelTipo.value;
+    const estado = modelEstado.value;
+
+    return rows.value.filter(proveedor => {
+        const pasaTexto = cumpleFiltroTexto(proveedor, texto);
+        const pasaTipo = cumpleFiltroTipo(proveedor, tipo);
+        const pasaEstado = cumpleFiltroEstado(proveedor, estado);
+
+        return pasaTexto && pasaTipo && pasaEstado;
+    });
+});
+
+// Función para filtrar por tipo
+
 // Función para abrir el documento en una nueva pestaña
 const abrirDocumento = (url) => {
     if (!url) {
@@ -143,33 +166,14 @@ const descargarDocumento = (url, nombre) => {
     document.body.removeChild(link)
 };
 
+// Función abrir modal para visualizar la información del proveedor
+function abrirModalVisualizar(proveedor) {
+    formDataView.value = {...proveedor};
+    persistentView.value = true;
+}
+
 // Función para abrir el modal de edición con datos precargados
 function abrirModalEditar(proveedor) {
-    /* proveedorEditando.value = proveedor;
-    nitEdit.value = proveedor.NIT;
-    dvEdit.value = proveedor.DV;
-    razonSocialEdit.value = proveedor.RazonSocial;
-    correoEdit.value = proveedor.CorreoElectronico;
-    direccionNotificacionEdit.value = proveedor.DireccionNotificacion;
-    telefonoEdit.value = proveedor.Telefono;
-    ciudadEdit.value = proveedor.Ciudad;
-    nombreRepresentanteEdit.value = proveedor.NombreRepresentante;
-    tipoDocumentoRepresentanteEdit = proveedor.TipoDocumentoRepresentante;
-    numeroIdentificacionEdit.value = proveedor.NumeroIdentificacion;
-    telefonoRepresentanteEdit.value = proveedor.TelefonoRepresentante;
-    correoElectronicoRepresentanteEdit.value = proveedor.CorreoElectronicoRepresentante;
-    nombreRepresentanteComercialEdit.value = proveedor.NombreRepresentanteComercial;
-    cargoRepresentanteComercialEdit.value = proveedor.CargoRepresentanteComercial;
-    telefonoRepresentanteComercialEdit.value = proveedor.TelefonoRepresentanteComercial;
-    correoElectronicoRepresentanteComercialEdit.value = proveedor.CorreoElectronicoRepresentanteComercial;
-    nombresApellidosResponsableEdit.value = proveedor.NombresApellidosResponsable;
-    correoElectronicoResponsableEdit.value = proveedor.CorreoElectronicoResponsable;
-    tipoContribuyenteEdit.value = proveedor.TipoContribuyente;
-    tipoProveedorEdit.value = proveedor.TipoProveedor;
-    documentosEdit.value = proveedor.Documentos;
-    estadoEdit.value = proveedor.estadoProveedor;
-    persistentEdit.value = true; */
-
     formDataEdit.value = {...proveedor};
     persistentEdit.value = true;
 }
@@ -226,12 +230,12 @@ const columns = [
         field: 'RazonSocial',
         sortable: true
     },
-    /* { 
+    { 
       name: 'DireccionNotificacion', 
       label: 'Dirección de notificación', 
       field: 'DireccionNotificacion', 
       sortable: true 
-    }, */
+    },
     { 
       name: 'Telefono', 
       label: 'Teléfono', 
@@ -247,18 +251,18 @@ const columns = [
         label: 'Correo Electrónico',
         field: 'CorreoElectronico'
     },
-    /*   {
+    {
         name: 'NombreRepresentante',
         label: 'Nombre del Representante',
         field: 'NombreRepresentante',
         sortable: true
       },
-      {
+      /* {
         name: 'NumeroIdentificacion',
         label: 'Número de Identificación',
         field: 'NumeroIdentificacion',
         sortable: true,
-      },
+      }, */
       {
         name: 'TelefonoRepresentante',
         label: 'Teléfono del Representante',
@@ -282,7 +286,7 @@ const columns = [
         label: 'Correo Electrónico del Responsable',
         field: 'CorreoElectronicoResponsable',
         sortable: true,
-      },*/
+      },
     {
         name: 'estadoProveedor',
         label: 'Estado',
@@ -351,46 +355,20 @@ async function eliminarProveedor(proveedor) {
 
 // función para editar un proveedor
 async function editarProveedor() {
-    const proveedor = proveedorEditando.value;
+    // const proveedor = proveedorEditando.value;
     loading.value = true;
     try {
-        console.log('ID proveedor:', proveedor._id);
-        if (!proveedor._id) {
-            errorNotify('ID del proveedor no encontrado. No se puede actualizar el registro.');
-            return;
-        }
+        console.log('ID proveedor:', formDataEdit.value._id);
+        if (!formDataEdit.value._id) {
+        errorNotify('Error: No se encontró el ID del proveedor');
+        return;
+    }
 
         const { _id, ...datosParaActualizar } = formDataEdit.value;
 
         
         const r = await axios.put(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${_id}`, datosParaActualizar);
-            /*NIT: nitEdit.value,
-            DV: dvEdit.value,
-            RazonSocial: razonSocialEdit.value,
-            CorreoElectronico: correoEdit.value,
-            DireccionNotificacion: direccionNotificacionEdit.value,
-            Telefono: telefonoEdit.value,
-            Ciudad: ciudadEdit.value,
-            NombreRepresentante: nombreRepresentanteEdit.value,
-            TipoDocumentoRepresentante: tipoDocumentoRepresentanteEdit.value,
-            NumeroIdentificacion: numeroIdentificacionEdit.value,
-            TelefonoRepresentante: telefonoRepresentanteEdit.value,
-            CorreoElectronicoRepresentante: correoElectronicoRepresentanteEdit.value,
-            NombreRepresentanteComercial: nombreRepresentanteComercialEdit.value,
-            CargoRepresentanteComercial: cargoRepresentanteComercialEdit.value,
-            TelefonoRepresentanteComercial: telefonoRepresentanteComercialEdit.value,
-            CorreoElectronicoRepresentanteComercial: correoElectronicoRepresentanteComercialEdit.value,
-            NombresApellidosResponsable: nombresApellidosResponsableEdit.value,
-            CorreoElectronicoResponsable: correoElectronicoResponsableEdit.value,
-            TipoContribuyente: tipoContribuyenteEdit.value,
-            TipoProveedor: tipoProveedorEdit.value,
-            Documentos: documentosEdit.value,
-            estadoProveedor: estadoEdit.value
-        }, {
-            /* headers: {
-                Authorization: `Bearer ${proveedorStore.tokenRegistro}`
-            }
-        }); */
+            
         console.log('Proveedor actualizado', r.data);
         exitoNotify('Proveedor actualizado exitosamente');
         persistentEdit.value = false;
@@ -425,12 +403,16 @@ async function solicitarActualizacionProveedor(proveedor) {
     <div class="pantallaProveedores">
         <section class="contenidoHeader">
             <div class="header">
-                <div class="rol-admin">
+                <div class="rol-admin" style="display: flex; align-items: center; gap: 10px;">
+                    <div class="icono">
+                        <img src="../assets/Logo_dashboard.jpeg" alt="Icono San Bartolomé" style="width: 70px; object-fit: contain;">
+                    </div>
                     <span class="bg-secondary text-white q-px-md q-py-sm rounded-borders">{{
-                        usuarioStore.usuario?.nombre }} - {{ usuarioStore.usuario?.rol }} </span>
+                        usuarioStore.usuario?.nombre }} - {{ usuarioStore.usuario?.rol }} 
+                    </span>
                 </div>
                 <div class="btn-logout">
-                    <q-btn @click="logout" class="logout bg-clear" label="Cerrar sesión" />
+                    <q-btn @click="logout" class="logout bg-white" label="Cerrar sesión" />
                 </div>
             </div>
         </section>
@@ -458,7 +440,7 @@ async function solicitarActualizacionProveedor(proveedor) {
 
                     <div class="contenido2">
                         <span class="numeroTotalProveedores text-h5 text-bold">{{ totalProveedoresPendientes }}</span>
-                        <span class="porcentajeMensual" style="color: #F8C837;">Requiere atención inmediata</span>
+                        <span class="porcentajeMensual text-grey-5" >Requiere atención inmediata</span>
                     </div>
                 </div>
                 <div class="box3 text-body2 q-pl-md q-pt-md">
@@ -477,16 +459,34 @@ async function solicitarActualizacionProveedor(proveedor) {
 
             <section class="filtros q-mt-lg">
                 <div class="inputBusqueda">
-                    <q-input outlined v-model="text" label="🔍 Buscar proveedor" class="q-pl-md rounded-borders" />
+                    <q-input 
+                        outlined 
+                        v-model="textBusqueda" 
+                        label="🔍 Buscar proveedor" 
+                        class="q-pl-md rounded-borders" 
+                    />
                 </div>
 
                 <div class="filtroTipo">
-                    <q-select class="selectTipo" outlined v-model="modelTipo" :options="optionsTipo" label="Tipo" />
+                    <q-select 
+                        class="selectTipo"
+                        outlined 
+                        v-model="modelTipo" 
+                        :options="optionsTipo" 
+                        label="Tipo" 
+                        clearable
+                    />
                 </div>
 
                 <div class="filtroEstado">
-                    <q-select class="selectEstado" outlined v-model="modelEstado" :options="optionsEstado"
-                        label="Estado" />
+                    <q-select 
+                        class="selectEstado" 
+                        outlined 
+                        v-model="modelEstado" 
+                        :options="optionsEstado"
+                        label="Estado" 
+                        clearable
+                    />
                 </div>
 
                 <div class="btnRegistrarProveedor q-pr-lg">
@@ -499,22 +499,57 @@ async function solicitarActualizacionProveedor(proveedor) {
 
             <section class="tablaProveedores">
                 <div class="q-pa-md">
-                    <q-table title="Proveedores" :rows="rows" :columns="columns" row-key="id" :loading="loading">
+                    <q-table 
+                        title="Proveedores" 
+                        :rows="rowsFiltradas" 
+                        :columns="columns" 
+                        row-key="_id" 
+                        :loading="loading
+                    ">
                         <!-- Personalizar columna de Opciones -->
                         <template v-slot:body-cell-Opciones="props">
                             <q-td :props="props">
-                                <q-btn flat icon="edit" color="primary" @click="abrirModalEditar(props.row)">
+                                <!-- Botón para visualizar la información del proveedor -->
+                                 <q-btn
+                                    flat
+                                    icon="visibility"
+                                    color="accent"
+                                    @click="abrirModalVisualizar(props.row)"
+                                 >
+                                    <q-tooltip transition-show="scale" transition-hide="scale">
+                                        Visualizar información del proveedor
+                                    </q-tooltip>
+                                 </q-btn>
+                                <!-- Botón de editar -->
+                                <q-btn 
+                                    flat 
+                                    icon="edit" 
+                                    color="primary" 
+                                    @click="abrirModalEditar(props.row)"
+                                >
                                     <q-tooltip transition-show="scale" transition-hide="scale">
                                         Editar proveedor
                                     </q-tooltip>
                                 </q-btn>
-                                <q-btn flat icon="delete" color="negative" @click="eliminarProveedor(props.row)" />
-                                <q-btn flat icon="email" color="warning"
-                                    @click="solicitarActualizacionProveedor(props.row)">
+                                <!-- Botón de eliminar -->
+                                <q-btn 
+                                    flat 
+                                    icon="delete" 
+                                    color="negative" 
+                                    @click="eliminarProveedor(props.row)" 
+                                />
+                                <!-- Botón solicitar actualización -->
+                                <q-btn 
+                                    flat 
+                                    icon="email" 
+                                    color="warning"
+                                    @click="solicitarActualizacionProveedor(props.row)
+                                ">
                                     <q-tooltip transition-show="scale" transition-hide="scale">
                                         Solicitar actualización al proveedor
                                     </q-tooltip>
                                 </q-btn>
+
                             </q-td>
                         </template>
                     </q-table>
@@ -554,6 +589,177 @@ async function solicitarActualizacionProveedor(proveedor) {
                 </q-dialog>
             </section>
 
+            <!-- SECCIÓN: MODAL DE VISUALIZACIÓN -->
+            <section class="dialogoVisualizar">
+                <q-dialog v-model="persistentView" persistent transition-show="scale" transition-hide="scale">
+                    <q-card class="text-black" style="width: 800px; max-width: 95vw;">
+                        
+                        <!-- Encabezado -->
+                        <q-card-section class="bg-accent text-white row items-center justify-between">
+                            <div class="text-h6">Detalles del Proveedor</div>
+                            <q-btn flat round dense icon="close" v-close-popup color="white" />
+                        </q-card-section>
+
+                        <!-- Cuerpo con Scroll si es necesario -->
+                        <q-card-section class="q-pa-md bg-grey-2" style="max-height: 70vh; overflow-y: auto;">
+                            
+                            <!-- SECCIÓN 1: INFORMACIÓN GENERAL -->
+                            <p class="text-subtitle1 text-primary q-mb-sm q-mt-none text-weight-bold">Información General</p>
+                            <div class="row q-col-gutter-md q-mb-md">
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.NIT" label="NIT" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.RazonSocial" label="Razón Social" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.TipoProveedor" label="Tipo de Proveedor" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.TipoContribuyente" label="Tipo de Contribuyente" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.CorreoElectronico" label="Correo Electrónico" dense type="email" />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.Telefono" label="Teléfono" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.DireccionNotificacion" label="Dirección de Notificación" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.Ciudad" label="Ciudad" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-select 
+                                        filled 
+                                        readonly 
+                                        v-model="formDataView.estadoProveedor" 
+                                        :options="optionsEstado" 
+                                        label="Estado Actual" 
+                                        dense
+                                    />
+                                </div>
+                            </div>
+
+                            <q-separator class="q-my-md" />
+
+                            <!-- SECCIÓN 2: REPRESENTANTE LEGAL -->
+                            <p class="text-subtitle1 text-primary q-mb-sm text-weight-bold">Representante Legal</p>
+                            <div class="row q-col-gutter-md q-mb-md">
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.NombreRepresentante" label="Nombre Completo" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.NumeroIdentificacion" label="No. Identificación" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.TipoDocumentoRepresentante" label="Tipo de Documento" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.TelefonoRepresentante" label="Teléfono" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.CorreoElectronicoRepresentante" label="Correo Electrónico" dense type="email" />
+                                </div>
+                            </div>
+
+                            <q-separator class="q-my-md" />
+
+                            <!-- SECCIÓN 3: REPRESENTANTE COMERCIAL -->
+                            <p class="text-subtitle1 text-primary q-mb-sm text-weight-bold">Representante Comercial</p>
+                            <div class="row q-col-gutter-md q-mb-md">
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.NombreRepresentanteComercial" label="Nombre Completo" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.CargoRepresentanteComercial" label="Cargo" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.TelefonoRepresentanteComercial" label="Teléfono" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.CorreoElectronicoRepresentanteComercial" label="Correo Electrónico" dense type="email" />
+                                </div>
+                            </div>
+
+                            <q-separator class="q-my-md" />
+
+                            <!-- SECCIÓN 4: RESPONSABLE DE FACTURACION -->
+                            <p class="text-subtitle1 text-primary q-mb-sm text-weight-bold">Responsable de Facturación</p>
+                            <div class="row q-col-gutter-md q-mb-md">
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.NombresApellidosResponsable" label="Nombre Completo" dense />
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <q-input filled readonly v-model="formDataView.CorreoElectronicoResponsable" label="Correo Electrónico" dense type="email" />
+                                </div>
+                            </div>
+
+                            <q-separator class="q-my-md" />
+
+                            <!-- SECCIÓN 5: DOCUMENTOS -->
+                            <p class="text-subtitle1 text-primary q-mb-sm text-weight-bold">Documentos Adjuntos</p>
+                            
+                            <q-list bordered separator class="rounded-borders bg-white">
+                                <q-item v-if="!formDataView.Documentos || formDataView.Documentos.length === 0">
+                                    <q-item-section class="text-grey-6 text-center">
+                                        No hay documentos cargados.
+                                    </q-item-section>
+                                </q-item>
+
+                                <q-item v-for="(doc, index) in (formDataView.Documentos || [])" :key="index">
+                                    <q-item-section avatar>
+                                        <q-icon 
+                                            :name="getIconDocumento(doc.nombre, doc.formato, doc.url)" 
+                                            :color="getColorDocumento(doc.tipo)" 
+                                            size="28px" 
+                                        />
+                                    </q-item-section>
+                                    
+                                    <q-item-section>
+                                        <q-item-label class="text-weight-bold">{{ doc.tipo }}</q-item-label>
+                                        <q-item-label caption>{{ doc.nombre }}</q-item-label>
+                                    </q-item-section>
+
+                                    <q-item-section side>
+                                        <div class="row q-gutter-xs">
+                                            <q-btn 
+                                                flat 
+                                                round 
+                                                dense 
+                                                icon="visibility" 
+                                                color="primary" 
+                                                @click="abrirDocumento(doc.url)"
+                                            >
+                                                <q-tooltip>Ver</q-tooltip>
+                                            </q-btn>
+                                            <q-btn 
+                                                flat 
+                                                round 
+                                                dense 
+                                                icon="download" 
+                                                color="secondary" 
+                                                @click="descargarDocumento(doc.url, doc.nombre)"
+                                            >
+                                                <q-tooltip>Descargar</q-tooltip>
+                                            </q-btn>
+                                        </div>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+
+                        </q-card-section>
+
+                        <!-- Pie del Modal -->
+                        <q-card-actions align="right" class="bg-grey-3">
+                            <q-btn label="Cerrar" color="primary" v-close-popup unelevated />
+                        </q-card-actions>
+                    </q-card>
+                </q-dialog>
+            </section>
+
+            <!-- SECCIÓN: MODAL DE ACTUALIZACION -->
             <section class="dialogoActualizar">
                 <q-dialog v-model="persistentEdit" persistent transition-show="scale" transition-hide="scale">
                     <q-card class="text-white" style="width: 600px;">
@@ -768,10 +974,10 @@ async function solicitarActualizacionProveedor(proveedor) {
 
 .contenidoHeader {
     display: flex;
-    justify-content: space-between;
+    // justify-content: space-between;
     align-items: center;
     height: 70px;
-    background-color: white;
+    background-color: #6BBB6B;
 }
 
 .contenidoHeader .header {
@@ -788,10 +994,10 @@ async function solicitarActualizacionProveedor(proveedor) {
 }
 
 .logout {
-    color: #3454D1;
+    color: #0a2833;
     border: 1px solid;
     border-radius: 12px;
-    border-color: #3454D1;
+    border-color: #6BBB6B;
 }
 
 .estadisticas {

@@ -42,6 +42,7 @@ const cargoRepresentanteComercial = ref('');
 const telefonoRepresentanteComercial = ref('');
 const correoElectronicoRepresentanteComercial = ref('');
 const nombresApellidosResponsable = ref('');
+const cargoResponsableFacturacion = ref('');
 const correoElectronicoResponsable = ref('');
 const tipoContribuyente = ref('');
 const tipoContribuyenteOptions = [
@@ -50,14 +51,16 @@ const tipoContribuyenteOptions = [
 ];
 const tipoProveedor = ref('');
 const tipoProveedorOptions = [
-    { label: 'Ferretería', value: 'Ferretería' },
-    { label: 'Materiales de Construcción', value: 'Materiales de Construcción' },
+    { label: 'Ferretería y Materiales de Construcción', value: 'Ferretería y Materiales de Construcción' },
+    { label: 'Elementos de Protección Personal (EPPs)', value: 'EPPs' },
     { label: 'Servicios Generales', value: 'Servicios Generales' },
+    { label: 'Consultoría Ambiental', value: 'Consultoría Ambiental' },
     { label: 'Suministros Industriales', value: 'Suministros Industriales' },
-    { label: 'Tecnología y Equipos', value: 'Tecnología y Equipos' },
+    { label: 'Tecnología e TI', value: 'Tecnología e TI' },
     { label: 'Diseño de obras civiles', value: 'Diseño de obras civiles' },
     { label: 'Otro', value: 'Otro' }
 ]
+const otroTipoProveedor = ref('')
 const autorizaDatosPersonales = ref(false);
 const autorizaConflictos = ref(false);
 
@@ -115,6 +118,7 @@ async function limpiarFormulario() {
     telefonoRepresentanteComercial.value = '';
     correoElectronicoRepresentanteComercial.value = '';
     nombresApellidosResponsable.value = '';
+    cargoResponsableFacturacion.value = '';
     correoElectronicoResponsable.value = '';
     tipoContribuyente.value = '';
     tipoProveedor.value = '';
@@ -126,6 +130,13 @@ async function limpiarFormulario() {
     dialogDatosAbierto.value = false;
     documentosRequeridos.value = [];
 }
+
+// Función para limpiar el campo "Otro" si cambian la selección
+const limpiarOtroSiCambia = (nuevoValor) => {
+    if (nuevoValor !== 'Otro') {
+        otroTipoProveedor.value = '';
+    }
+};
 
 async function crearRegistro() {
     loading.value = true;
@@ -211,6 +222,7 @@ async function crearRegistro() {
             CorreoElectronicoResponsable: correoElectronicoResponsable.value,
             TipoContribuyente: tipoContribuyente.value,
             TipoProveedor: tipoProveedor.value,
+            OtroTipoProveedor: otroTipoProveedor.value,
             AutorizaDatosPersonales: autorizaDatosPersonales.value,
             AutorizaConflictos: autorizaConflictos.value,
             Documentos: documentosSubidos  //URLs reales de Cloudinary
@@ -416,7 +428,7 @@ function obtenerDocumentosObligatorios() {
                         filled
                         v-model="tipoDocumentoRepresentante"
                         :options="tipoDocumentoOptions"
-                        label="Tipo de Documento del Representante"
+                        label="Tipo de Documento del Representante Legal"
                         emit-value
                         map-options
                     />
@@ -424,19 +436,19 @@ function obtenerDocumentosObligatorios() {
                         style="width: 48%;"
                         filled
                         v-model="numeroIdentificacion"
-                        label="Número de Identificación del Representante"
+                        label="Número de Identificación del Representante Legal"
                     />
                     <q-input
                         style="width: 48%;"
                         filled
                         v-model="telefonoRepresentante"
-                        label="Teléfono del Representante"
+                        label="Teléfono del Representante Legal"
                     />
                     <q-input
                         style="width: 48%;"
                         filled
                         v-model="correoElectronicoRepresentante"
-                        label="Correo Electrónico del Representante"
+                        label="Correo Electrónico del Representante Legal"
                         type="email"
                     />
                 </div>
@@ -473,16 +485,22 @@ function obtenerDocumentosObligatorios() {
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Responsable de Facturación</p>
                 <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <q-input
-                        style="width: 100%;"
+                        style="width: 48%;"
                         filled
                         v-model="nombresApellidosResponsable"
-                        label="Nombres y Apellidos del Responsable"
+                        label="Nombres y Apellidos del Responsable de Facturación"
+                    />
+                    <q-input
+                        style="width: 48%;"
+                        filled
+                        v-model="cargoResponsableFacturacion"
+                        label="Cargo del Responsable de Facturación"
                     />
                     <q-input
                         style="width: 100%;"
                         filled
                         v-model="correoElectronicoResponsable"
-                        label="Correo Electrónico del Responsable"
+                        label="Correo Electrónico del Responsable de Facturación"
                         type="email"
                     />
                 </div>
@@ -506,7 +524,22 @@ function obtenerDocumentosObligatorios() {
                         label="Tipo de Proveedor"
                         emit-value
                         map-options
+                        @update:model-value="limpiarOtroSiCambia"
                     />
+
+                    <!-- Input condicional (Solo aparece si es 'Otro') -->
+                     <div style="width: 48%;" v-if="tipoProveedor === 'Otro'">
+                        <q-input
+                            filled
+                            v-model="otroTipoProveedor"
+                            label="Especifique el tipo de proveedor"
+                            placeholder="Ej: Consultoría Ambiental"
+                            :rules="[val => !!val || 'Este campo es obligatorio']"
+                            lazy-rules
+                            class="bg-blue-1"
+                        />
+                     </div>
+
                     <div style="width: 48%; display: flex; flex-direction: column; gap: 8px;">
 
                          <!-- Autorización de datos personales -->
