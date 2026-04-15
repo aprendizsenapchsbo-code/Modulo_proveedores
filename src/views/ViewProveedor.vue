@@ -51,12 +51,12 @@ const tipoContribuyenteOptions = [
 ];
 const tipoProveedor = ref('');
 const tipoProveedorOptions = [
-    { label: 'Ferretería y Materiales de Construcción', value: 'Ferretería y Materiales de Construcción' },
-    { label: 'Elementos de Protección Personal (EPPs)', value: 'EPPs' },
-    { label: 'Servicios Generales', value: 'Servicios Generales' },
-    { label: 'Consultoría Ambiental', value: 'Consultoría Ambiental' },
-    { label: 'Suministros Industriales', value: 'Suministros Industriales' },
-    { label: 'Tecnología e TI', value: 'Tecnología e TI' },
+    { label: 'Ferretería y Materiales de Construcción', value: 'Ferretería y materiales de construcción' },
+    { label: 'Elementos de Protección Personal (EPP)', value: 'EPP' },
+    { label: 'Servicios Generales', value: 'Servicios generales' },
+    { label: 'Consultoría Ambiental', value: 'Consultoría ambiental' },
+    { label: 'Suministros Industriales', value: 'Suministros industriales' },
+    { label: 'Tecnología', value: 'Tecnología' },
     { label: 'Diseño de obras civiles', value: 'Diseño de obras civiles' },
     { label: 'Otro', value: 'Otro' }
 ]
@@ -219,6 +219,7 @@ async function crearRegistro() {
             TelefonoRepresentanteComercial: telefonoRepresentanteComercial.value,
             CorreoElectronicoRepresentanteComercial: correoElectronicoRepresentanteComercial.value,
             NombresApellidosResponsable: nombresApellidosResponsable.value,
+            CargoResponsableFacturacion: cargoResponsableFacturacion.value,
             CorreoElectronicoResponsable: correoElectronicoResponsable.value,
             TipoContribuyente: tipoContribuyente.value,
             TipoProveedor: tipoProveedor.value,

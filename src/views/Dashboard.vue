@@ -37,7 +37,7 @@ const modelTipo = ref(null);
 const modelEstado = ref(null);
 const textBusqueda = ref('');
 const optionsTipo = [
-    'Ferretería y Materiales de Construcción', 'EPPs', 'Servicios Generales', 'Suministros Industriales', 'Tecnología e TI', 'Diseño de obras civiles', 'Otro'
+    'Ferretería y materiales de construcción', 'EPP', 'Servicios generales', 'Suministros industriales', 'Tecnología', 'Diseño de obras civiles', 'Otro'
 ]
 const optionsEstado = [
     'Pre-registro', 'Registrado', 'Actualizado', 'Pendiente Actualización', 'Inactivo'
