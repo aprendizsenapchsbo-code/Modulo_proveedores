@@ -9,7 +9,7 @@ import { useProveedorStore } from '../stores/proveedor.js';
 const routes = [
     {path: '/', component: Login},
     {path: '/dashboard', component: Dashboard},
-    {path: '/formulario-proveedor/', component: ViewProveedor},
+    {path: '/formulario-proveedor/:token', component: ViewProveedor},
     {path: '/registro-exitoso', component: registroExitoso},
     {path: '/aprobacion-pre-registro/:id', component: AprobacionPreRegistro},
 ]
