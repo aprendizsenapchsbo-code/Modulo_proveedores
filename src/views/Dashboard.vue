@@ -863,7 +863,7 @@ async function solicitarActualizacionProveedor(proveedor) {
                                     <q-select 
                                     filled 
                                     v-model="formDataEdit.TipoProveedor"
-                                    :options="['Ferretería', 'Materiales de Construcción', 'Servicios Generales', 'Suministros Industriales', 'Tecnología y Equipos', 'Diseño de obras civiles', 'Otro']" 
+                                    :options="['Ferretería y materiales de construcción', 'EPP', 'Servicios generales', 'Suministros industriales', 'Tecnología', 'Diseño de obras civiles', 'Otro']" 
                                     label="Tipo de Proveedor" />
                                 </div>
 
