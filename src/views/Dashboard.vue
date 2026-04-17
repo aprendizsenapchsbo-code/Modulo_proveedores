@@ -308,9 +308,9 @@ async function obtenerProveedores() {
     loading.value = true;
     try {
         const response = await axios.get('https://modulo-proveedores-backend.vercel.app/api/proveedor', {
-            /* headers: {
-                Authorization: `Bearer ${proveedorStore.tokenRegistro}`
-            } */
+            headers: {
+                'x-token': ` ${usuarioStore.token}`
+            }
         });
         // const r = response.data
         console.log('Proveedores', response.data);
@@ -405,14 +405,14 @@ async function solicitarActualizacionProveedor(proveedor) {
             <div class="header">
                 <div class="rol-admin" style="display: flex; align-items: center; gap: 10px;">
                     <div class="icono">
-                        <img src="../assets/Logo_dashboard.jpeg" alt="Icono San Bartolomé" style="width: 70px; object-fit: contain;">
+                        <img src="../assets/Logo_login.png" alt="Icono San Bartolomé" style="width: 100px; ">
                     </div>
                     <span class="bg-secondary text-white q-px-md q-py-sm rounded-borders">{{
                         usuarioStore.usuario?.nombre }} - {{ usuarioStore.usuario?.rol }} 
                     </span>
                 </div>
                 <div class="btn-logout">
-                    <q-btn @click="logout" class="logout bg-white" label="Cerrar sesión" />
+                    <q-btn @click="logout" class="logout " label="Cerrar sesión" />
                 </div>
             </div>
         </section>
@@ -977,7 +977,7 @@ async function solicitarActualizacionProveedor(proveedor) {
     // justify-content: space-between;
     align-items: center;
     height: 70px;
-    background-color: #6BBB6B;
+    background-color: white;
 }
 
 .contenidoHeader .header {
