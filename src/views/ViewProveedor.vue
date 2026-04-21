@@ -1,13 +1,18 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import axios from 'axios';
 import { useProveedorStore } from '../stores/proveedor.js';
 import { useAprobarPreRegistroStore } from '../stores/aprobarPreRegistro.js';
 import { exitoNotify, errorNotify } from '../composables/Notify.js';
 import { router } from '../routes/router.js';
+import apiClient from '../services/axios.js';
 
+const route = useRoute();
 const proveedorStore = useProveedorStore();
 const aprobacionPreRegistroStore = useAprobarPreRegistroStore();
+
+
 const nit = ref('');
 const dv = ref('');
 const dvOpciones = [
@@ -95,9 +100,15 @@ const año = fechaActual.getFullYear();
 
 onMounted(() => {
     console.log('Token proveedor en store:', proveedorStore.tokenRegistro);
-})
+    const tokenFormUrl = route.params.token;
+    if (!tokenFormUrl) {
+        errorNotify('Enlace inválido: No se encontró el token de registro.');
+    } else {
+        proveedorStore.setTokenRegistro(tokenFormUrl);
+    }
+});
 
-watch (tipoContribuyente, () => {
+watch(tipoContribuyente, () => {
     obtenerDocumentosObligatorios();
 })
 
@@ -143,8 +154,10 @@ async function crearRegistro() {
     intentoEnviar.value = true;
     console.log('Token de registro:', proveedorStore.tokenRegistro); // Verificar el token antes de la solicitud
 
-    if (!proveedorStore.tokenRegistro) {
-        errorNotify('Token de registro no disponible. Por favor, asegúrese de haber recibido el correo de invitación y haber accedido al enlace proporcionado.');
+    const tokenRegistro = route.params.token;
+
+    if (!tokenRegistro) {
+        errorNotify('Sesión expirada o enlace inválido. Por favor, solicite un nuevo enlace de registro.');
         loading.value = false;
         return;
     }
@@ -157,7 +170,7 @@ async function crearRegistro() {
         loading.value = false;
         return;
     };
-    
+
     //Validar que que cada documento obligatorio tenga un archivo asignado
     const documentosFaltantes = documentosRequeridos.value.filter(d => !d.archivo);
     if (documentosFaltantes.length > 0) {
@@ -167,42 +180,24 @@ async function crearRegistro() {
     }
 
     // Subir primero los archivos a Cloudinary
-    const documentosSubidos = [];
+    try {
+        const promesaSubida = documentosRequeridos.value.map(async (doc) => {
+            const formData = new FormData();
+            formData.append('archivo', doc.archivo);
+            formData.append('tipo', doc.tipo);
 
-    for (let i = 0; i < documentosRequeridos.value.length; i++) {
-        const doc = documentosRequeridos.value[i];
-        if(!doc.archivo) {
-            errorNotify(`Falta cargar: ${doc.tipo}`);
-            loading.value = false;
-            return;
-        }
+            const res = await apiClient.post(
+                'api/proveedor/upload',
+                formData,
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+            );
+            return res.data.data
+            console.log(`Subido ${doc.tipo} - ${doc.archivo.name}`)
+        });
 
-        const formData = new FormData();
-        formData.append('archivo', doc.archivo);
-        formData.append('tipo', doc.tipo);
+        const urlsDocumentos = await Promise.all(promesaSubida);
 
-        try {
-            const res = await axios.post(
-                        'https://modulo-proveedores-backend.vercel.app/api/proveedor/upload',
-                        formData,
-                        { headers: { 'Content-Type': 'multipart/form-data'}}
-                    );
-                    
-                    // Guardar URL y marcar como subido
-                    doc.url = res.data.data;
-                    doc.subido = true;
-                    documentosSubidos.push(res.data.data);
-    
-                    console.log(`Subido ${doc.tipo} - ${doc.archivo.name}`)
-        } catch (error) {
-            errorNotify(`Error al subir ${doc.tipo}: ${error.message}`);
-            loading.value = false;
-            return;  // Detiene todo el proceso si falla la subida de un archivo
-        }
-    }
-
-    try {       
-        const response = await axios.post(`https://modulo-proveedores-backend.vercel.app/api/proveedor/registro/completar/${proveedorStore.tokenRegistro}`, {
+        const response = await apiClient.post(`api/proveedor/registro/completar/${tokenRegistro}`, {
             NIT: nit.value,
             DV: dv.value,
             RazonSocial: razonSocial.value,
@@ -226,7 +221,7 @@ async function crearRegistro() {
             OtroTipoProveedor: otroTipoProveedor.value,
             AutorizaDatosPersonales: autorizaDatosPersonales.value,
             AutorizaConflictos: autorizaConflictos.value,
-            Documentos: documentosSubidos  //URLs reales de Cloudinary
+            Documentos: urlsDocumentos  //URLs reales de Cloudinary
         });
         console.log(response.data);
 
@@ -239,8 +234,14 @@ async function crearRegistro() {
         // Redirigir a la pantalla de éxito
         router.push('/registro-exitoso');
     } catch (error) {
-        console.error('Error al guardar el registro', error)
-        errorNotify(error.response?.data?.msg || 'Error al guardar el registro')
+        console.error('Error al guardar el registro', error);
+        
+        // Manejo específico si el token expiró durante el proceso (401 o 403)
+        if (error.response?.status === 401 || error.response?.status === 403) {
+            errorNotify('El enlace de registro ha expirado o ya fue utilizado.');
+        } else {
+            errorNotify(error.response?.data?.msg || 'Error al guardar el registro. Intente nuevamente.');
+        }
     } finally {
         loading.value = false;
     }
@@ -348,7 +349,7 @@ function obtenerDocumentosObligatorios() {
     }));
 
     console.log('documentosRequeridos inicializado:', documentosRequeridos.value);
-    
+
 }
 
 </script>
@@ -358,207 +359,96 @@ function obtenerDocumentosObligatorios() {
         <div class="titulo ">
             <h1 class="text-h3 text-weight-bold text-center text-secondary q-mb-md q-pt-md">Formulario de Proveedor</h1>
             <p class="text-body1 text-center text-grey-6 q-pb-md" style="width: 300px; margin: 0 auto;">
-                Complete los datos generales y cargue la documentación requerida para mantener vigente su estado como proveedor
+                Complete los datos generales y cargue la documentación requerida para mantener vigente su estado como
+                proveedor
             </p>
         </div>
 
-        <section style="width: 90%; margin: 0 auto; background-color: white; border: 1px solid #ccc; padding: 20px; border-radius: 10px;">
-            <q-form @submit.prevent="crearRegistro" class="" >
+        <section
+            style="width: 90%; margin: 0 auto; background-color: white; border: 1px solid #ccc; padding: 20px; border-radius: 10px;">
+            <q-form @submit.prevent="crearRegistro" class="">
                 <p class="text-h5 text-secondary q-pb-md">Información General</p>
 
                 <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
-                    <q-input
-                        class="inputNit"
-                        style="width: 42%;"
-                        filled
-                        v-model="nit"
-                        label="Número de Identificación Tributaria (NIT)"
-                    />
-                    <q-select
-                        class="inputCV"
-                        style="width: 6%; font-size: 12px;"
-                        filled
-                        v-model="dv"
-                        :options="dvOpciones"
-                        label="DV"
-                        emit-value
-                        map-options>
-                        
+                    <q-input class="inputNit" style="width: 42%;" filled v-model="nit"
+                        label="Número de Identificación Tributaria (NIT)" />
+                    <q-select class="inputCV" style="width: 6%; font-size: 12px;" filled v-model="dv"
+                        :options="dvOpciones" label="DV" emit-value map-options>
+
                     </q-select>
-                    <q-input
-                        class="inputRazonSocial"
-                        style="width: 48%;"
-                        filled
-                        v-model="razonSocial"
-                        label="Razón Social"
-                    />
+                    <q-input class="inputRazonSocial" style="width: 48%;" filled v-model="razonSocial"
+                        label="Razón Social" />
                 </div>
 
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Información de Notificación</p>
                 <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
-                    <q-input
-                        style="width: 100%;"
-                        filled
-                        v-model="direccionNotificacion"
-                        label="Dirección de Notificación"
-                    />
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="telefono"
-                        label="Teléfono"
-                    />
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="ciudad"
-                        label="Ciudad"
-                    />
+                    <q-input style="width: 100%;" filled v-model="direccionNotificacion"
+                        label="Dirección de Notificación" />
+                    <q-input style="width: 48%;" filled v-model="telefono" label="Teléfono" />
+                    <q-input style="width: 48%;" filled v-model="ciudad" label="Ciudad" />
                 </div>
 
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Representante Legal</p>
                 <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="nombreRepresentante"
-                        label="Nombre del Representante Legal"
-                    />
-                    <q-select
-                        style="width: 48%;"
-                        filled
-                        v-model="tipoDocumentoRepresentante"
-                        :options="tipoDocumentoOptions"
-                        label="Tipo de Documento del Representante Legal"
-                        emit-value
-                        map-options
-                    />
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="numeroIdentificacion"
-                        label="Número de Identificación del Representante Legal"
-                    />
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="telefonoRepresentante"
-                        label="Teléfono del Representante Legal"
-                    />
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="correoElectronicoRepresentante"
-                        label="Correo Electrónico del Representante Legal"
-                        type="email"
-                    />
+                    <q-input style="width: 48%;" filled v-model="nombreRepresentante"
+                        label="Nombre del Representante Legal" />
+                    <q-select style="width: 48%;" filled v-model="tipoDocumentoRepresentante"
+                        :options="tipoDocumentoOptions" label="Tipo de Documento del Representante Legal" emit-value
+                        map-options />
+                    <q-input style="width: 48%;" filled v-model="numeroIdentificacion"
+                        label="Número de Identificación del Representante Legal" />
+                    <q-input style="width: 48%;" filled v-model="telefonoRepresentante"
+                        label="Teléfono del Representante Legal" />
+                    <q-input style="width: 48%;" filled v-model="correoElectronicoRepresentante"
+                        label="Correo Electrónico del Representante Legal" type="email" />
                 </div>
 
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Información del Representante Comercial</p>
                 <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="nombreRepresentanteComercial"
-                        label="Nombre del Representante Comercial"
-                    />
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="cargoRepresentanteComercial"
-                        label="Cargo del Representante Comercial"
-                    />
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="telefonoRepresentanteComercial"
-                        label="Teléfono del Representante Comercial"
-                    />
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="correoElectronicoRepresentanteComercial"
-                        label="Correo Electrónico del Representante Comercial"
-                        type="email"
-                    />
+                    <q-input style="width: 48%;" filled v-model="nombreRepresentanteComercial"
+                        label="Nombre del Representante Comercial" />
+                    <q-input style="width: 48%;" filled v-model="cargoRepresentanteComercial"
+                        label="Cargo del Representante Comercial" />
+                    <q-input style="width: 48%;" filled v-model="telefonoRepresentanteComercial"
+                        label="Teléfono del Representante Comercial" />
+                    <q-input style="width: 48%;" filled v-model="correoElectronicoRepresentanteComercial"
+                        label="Correo Electrónico del Representante Comercial" type="email" />
                 </div>
 
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Responsable de Facturación</p>
                 <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="nombresApellidosResponsable"
-                        label="Nombres y Apellidos del Responsable de Facturación"
-                    />
-                    <q-input
-                        style="width: 48%;"
-                        filled
-                        v-model="cargoResponsableFacturacion"
-                        label="Cargo del Responsable de Facturación"
-                    />
-                    <q-input
-                        style="width: 100%;"
-                        filled
-                        v-model="correoElectronicoResponsable"
-                        label="Correo Electrónico del Responsable de Facturación"
-                        type="email"
-                    />
+                    <q-input style="width: 48%;" filled v-model="nombresApellidosResponsable"
+                        label="Nombres y Apellidos del Responsable de Facturación" />
+                    <q-input style="width: 48%;" filled v-model="cargoResponsableFacturacion"
+                        label="Cargo del Responsable de Facturación" />
+                    <q-input style="width: 100%;" filled v-model="correoElectronicoResponsable"
+                        label="Correo Electrónico del Responsable de Facturación" type="email" />
                 </div>
 
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Datos Adicionales</p>
                 <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
-                    <q-select
-                        style="width: 48%;"
-                        filled
-                        v-model="tipoContribuyente"
-                        :options="tipoContribuyenteOptions"
-                        label="Tipo de Contribuyente"
-                        emit-value
-                        map-options
-                    />
-                    <q-select
-                        style="width: 48%;"
-                        filled
-                        v-model="tipoProveedor"
-                        :options="tipoProveedorOptions"
-                        label="Tipo de Proveedor"
-                        emit-value
-                        map-options
-                        @update:model-value="limpiarOtroSiCambia"
-                    />
+                    <q-select style="width: 48%;" filled v-model="tipoContribuyente" :options="tipoContribuyenteOptions"
+                        label="Tipo de Contribuyente" emit-value map-options />
+                    <q-select style="width: 48%;" filled v-model="tipoProveedor" :options="tipoProveedorOptions"
+                        label="Tipo de Proveedor" emit-value map-options @update:model-value="limpiarOtroSiCambia" />
 
                     <!-- Input condicional (Solo aparece si es 'Otro') -->
-                     <div style="width: 48%;" v-if="tipoProveedor === 'Otro'">
-                        <q-input
-                            filled
-                            v-model="otroTipoProveedor"
-                            label="Especifique el tipo de proveedor"
+                    <div style="width: 48%;" v-if="tipoProveedor === 'Otro'">
+                        <q-input filled v-model="otroTipoProveedor" label="Especifique el tipo de proveedor"
                             placeholder="Ej: Consultoría Ambiental"
-                            :rules="[val => !!val || 'Este campo es obligatorio']"
-                            lazy-rules
-                            class="bg-blue-1"
-                        />
-                     </div>
+                            :rules="[val => !!val || 'Este campo es obligatorio']" lazy-rules class="bg-blue-1" />
+                    </div>
 
                     <div style="width: 48%; display: flex; flex-direction: column; gap: 8px;">
 
-                         <!-- Autorización de datos personales -->
+                        <!-- Autorización de datos personales -->
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <q-checkbox
-                                :model-value="autorizaDatosPersonales"
+                            <q-checkbox :model-value="autorizaDatosPersonales"
                                 @update:model-value="(val) => manejarClickCheckbox(val, 'datos')"
                                 label="Autorizo el tratamiento de datos personales"
-                                :color="!autorizaDatosPersonales ? 'negative' : 'primary'"
-                            />
+                                :color="!autorizaDatosPersonales ? 'negative' : 'primary'" />
 
-                            <q-btn
-                                flat round dense
-                                icon="info"
-                                color="primary"
-                                size="sm"
-                                @click="dialogDatos = true"
-                            />
+                            <q-btn flat round dense icon="info" color="primary" size="sm" @click="dialogDatos = true" />
                         </div>
                         <span v-if="intentoEnviar && !autorizaDatosPersonales" style="color: red; font-size: 12px;">
                             Debe aceptar la autorización de tratamiento de datos personales.
@@ -566,20 +456,13 @@ function obtenerDocumentosObligatorios() {
 
                         <!-- Autorización de conflictos de intereses -->
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <q-checkbox
-                                :model-value="autorizaConflictos"
+                            <q-checkbox :model-value="autorizaConflictos"
                                 @update:model-value="(val) => manejarClickCheckbox(val, 'conflictos')"
                                 label="Confirmo que he leído y acepto la declaración de conflictos de intereses"
-                                :color="!autorizaConflictos ? 'negative' : 'primary'"
-                            />
+                                :color="!autorizaConflictos ? 'negative' : 'primary'" />
 
-                            <q-btn
-                                flat round dense
-                                icon="info"
-                                color="primary"
-                                size="sm"
-                                @click="dialogConflictos = true"
-                            />
+                            <q-btn flat round dense icon="info" color="primary" size="sm"
+                                @click="dialogConflictos = true" />
                         </div>
                         <span v-if="intentoEnviar && !autorizaConflictos" style="color: red; font-size: 12px;">
                             Debe aceptar la autorización de declaración de conflictos e intereses.
@@ -599,32 +482,18 @@ function obtenerDocumentosObligatorios() {
                             <p class="text-subtitle2 q-mb-xs">{{ doc.tipo }}</p>
                             {{ console.log(`Renderizando: ${doc.tipo}, archivo:`, doc.archivo) }}
 
-                            <q-file 
-                                class="q-mb-lg"
-                                v-model="doc.archivo"
-                                outlined
-                                dense
-                                hide-upload-btn
+                            <q-file class="q-mb-lg" v-model="doc.archivo" outlined dense hide-upload-btn
                                 :label="doc.archivo ? doc.archivo.name : 'Seleccione archivo'"
-                                accept=".pdf, .jpg, .jpeg, .png"
-                                :color="doc.archivo ? 'primary' : 'grey-5'"
-                            >
+                                accept=".pdf, .jpg, .jpeg, .png" :color="doc.archivo ? 'primary' : 'grey-5'">
                                 <template v-if="doc.archivo" #append>
-                                    <q-btn
-                                        flat
-                                        round
-                                        dense
-                                        icon="close"
-                                        color="grey"
-                                        @click="doc.archivo = null"
-                                    />
+                                    <q-btn flat round dense icon="close" color="grey" @click="doc.archivo = null" />
                                 </template>
                             </q-file>
 
                             <!-- Validación visual por campo -->
-                             <span v-if="intentoEnviar && !doc.archivo" style="color: red; font-size: 12px;">
+                            <span v-if="intentoEnviar && !doc.archivo" style="color: red; font-size: 12px;">
                                 Este documento es obligatorio.
-                             </span>
+                            </span>
                         </div>
                     </div>
                     <p v-else class="text-body2 text-grey-6">
@@ -678,13 +547,7 @@ function obtenerDocumentosObligatorios() {
                 </div>
 
                 <div class="boton q-mt-md" style="display: flex; justify-content: flex-end;">
-                    <q-btn
-                        type="submit"
-                        :submit="true"
-                        label="Guardar"
-                        color="primary"
-                        :loading="loading"
-                    />
+                    <q-btn type="submit" :submit="true" label="Guardar" color="primary" :loading="loading" />
                 </div>
             </q-form>
         </section>
@@ -716,70 +579,82 @@ function obtenerDocumentosObligatorios() {
                     <li>Gestión de pagos, cuentas por pagar, información exógena, reporte de impuestos</li>
                     <li>Suministro de servicios</li>
                     <li>Gestión Administrativa, manejo de información financiera, contable, fiscal y legal</li>
-                    <li>Comunicaciones físicas y/o electrónicas con los empleados del cliente y del proveedor derivadas de la relación comercial</li>
+                    <li>Comunicaciones físicas y/o electrónicas con los empleados del cliente y del proveedor derivadas
+                        de
+                        la relación comercial</li>
                 </ol>
 
-                <p class="text-weight-bold q-mt-md q-mb-md">TRATAMIENTO DE LOS DATOS, DERECHOS DE TITULAR Y MEDIDAS DE SEGURIDAD</p>
+                <p class="text-weight-bold q-mt-md q-mb-md">TRATAMIENTO DE LOS DATOS, DERECHOS DE TITULAR Y MEDIDAS DE
+                    SEGURIDAD</p>
                 <ul class="q-ml-md">
-                    <li>Conozco que los datos que sobre mi se obtengan, serán administrados por <strong>PCH SAN BARTOLOME SAS ESP</strong>, con un nivel adecuado de protección, 
-                        asegurando la debida confidencialidad de dicha información y evitando la consulta por parte de terceros no autorizados, 
-                        salvo que esta sea requerida por una entidad pública o administrativa en ejercicio de sus funciones legales o por orden judicial, 
-                        casos de urgencia médica o sanitaria o en aquellos casos regulados en el artículo 10 de la ley 1581 de 2012.</li>
-                    <li>Conozco que la información personal que suministro, se encuentra almacenada en la oficina principal y/o sedes de <strong>PCH SAN BARTOLOME SAS ESP</strong>, 
-                        contando con todos las medidas de seguridad físicas, técnicas y administrativas para evitar su perdida, adulteración, uso fraudulento o no adecuado.
+                    <li>Conozco que los datos que sobre mi se obtengan, serán administrados por <strong>PCH SAN
+                            BARTOLOME
+                            SAS ESP</strong>, con un nivel adecuado de protección,
+                        asegurando la debida confidencialidad de dicha información y evitando la consulta por parte de
+                        terceros no autorizados,
+                        salvo que esta sea requerida por una entidad pública o administrativa en ejercicio de sus
+                        funciones
+                        legales o por orden judicial,
+                        casos de urgencia médica o sanitaria o en aquellos casos regulados en el artículo 10 de la ley
+                        1581
+                        de 2012.</li>
+                    <li>Conozco que la información personal que suministro, se encuentra almacenada en la oficina
+                        principal
+                        y/o sedes de <strong>PCH SAN BARTOLOME SAS ESP</strong>,
+                        contando con todos las medidas de seguridad físicas, técnicas y administrativas para evitar su
+                        perdida, adulteración, uso fraudulento o no adecuado.
                     </li>
-                    <li>Declaro que <strong>PCH SAN BARTOLOME SAS ESP</strong>, ha puesto en mi conocimiento, el derecho que poseo como titular de la información entregada, 
-                        de recibir en cualquier momento información acerca del tratamiento dado a los datos entregados y/o de solicitar la actualización, 
-                        rectificación y/o supresión de los datos personales recolectados o la revocatoria de la autorización otorgada, lo cual podré solicitar 
-                        mediante un correo electrónico enviado a <strong>eticaycumplimiento@pch-sbo.com</strong> o una comunicación dirigida a la dirección: 
+                    <li>Declaro que <strong>PCH SAN BARTOLOME SAS ESP</strong>, ha puesto en mi conocimiento, el derecho
+                        que
+                        poseo como titular de la información entregada,
+                        de recibir en cualquier momento información acerca del tratamiento dado a los datos entregados
+                        y/o
+                        de solicitar la actualización,
+                        rectificación y/o supresión de los datos personales recolectados o la revocatoria de la
+                        autorización
+                        otorgada, lo cual podré solicitar
+                        mediante un correo electrónico enviado a <strong>eticaycumplimiento@pch-sbo.com</strong> o una
+                        comunicación dirigida a la dirección:
                         <strong>Calle 70 # 7-30</strong> Edificio Séptima Setenta de la ciudad de Bogotá.
                     </li>
-                    <li>Conozco que <strong>PCH SAN BARTOLOME SAS ESP</strong>, cuenta con una politica de Protección de Datos Personales la cual podré solicitar 
+                    <li>Conozco que <strong>PCH SAN BARTOLOME SAS ESP</strong>, cuenta con una politica de Protección de
+                        Datos Personales la cual podré solicitar
                         a través del correo electrónico <strong>eticaycumplimiento@pch-sbo.com</strong>
                     </li>
                 </ul>
 
                 <p class="q-mt-md">
-                    La presente autorización, se firma a los <strong>{{ dia }}</strong> días del mes de <strong>{{ mes }}</strong> del año <strong>{{ año }}</strong>
+                    La presente autorización, se firma a los <strong>{{ dia }}</strong> días del mes de <strong>{{ mes
+                    }}</strong> del año <strong>{{ año }}</strong>
                 </p>
-                <p>Nombre del Representante Legal: <strong>{{ nombreRepresentante || '___________________' }}</strong></p>
+                <p>Nombre del Representante Legal: <strong>{{ nombreRepresentante || '___________________' }}</strong>
+                </p>
                 <p>Cédula de Ciudadanía: <strong>{{ numeroIdentificacion || '___________________' }}</strong></p>
             </q-card-section>
 
             <div class="q-mt-lg q-pa-md bg-grey-2 rounded-borders">
-                <q-checkbox
-                    v-model="firmaAceptadaDatosPersonales"
-                    label="Firmo digitalmente este documento al marcar esta casilla"
-                    color="primary"
-                />
+                <q-checkbox v-model="firmaAceptadaDatosPersonales"
+                    label="Firmo digitalmente este documento al marcar esta casilla" color="primary" />
                 <p>
-                    Al aceptar, declaro que la información es verídica y doy mi consentimiento el {{ fechaFirmaDatos || '___________________' }}
+                    Al aceptar, declaro que la información es verídica y doy mi consentimiento el {{ fechaFirmaDatos ||
+                        '___________________' }}
                 </p>
 
             </div>
 
             <q-card-actions align="right">
-                <q-btn 
-                flat 
-                label="Cerrar sin aceptar" 
-                color="grey" 
-                v-close-popup
-                />
+                <q-btn flat label="Cerrar sin aceptar" color="grey" v-close-popup />
 
-                <q-btn
-                flat 
-                label="He leído y acepto" 
-                color="primary" 
-                :disable="!firmaAceptadaDatosPersonales"
-                @click="aceptarYCerrarDatos"
-                />
+                <q-btn flat label="He leído y acepto" color="primary" :disable="!firmaAceptadaDatosPersonales"
+                    @click="aceptarYCerrarDatos" />
             </q-card-actions>
 
         </q-card>
     </q-dialog>
 
     <!-- Diálogo de autorización de conflictos de intereses -->
-     <q-dialog v-model="dialogConflictos" maximized persistent @show="onDialogConflictosOpen" @hide="onDialogConflictosClose">
+    <q-dialog v-model="dialogConflictos" maximized persistent @show="onDialogConflictosOpen"
+        @hide="onDialogConflictosClose">
         <q-card style="max-width: 700px; width: 100%; margin: auto;">
             <q-card-section class="bg-primary text-white">
                 <div class="text-h6">Declaración de Conflictos de Intereses</div>
@@ -789,71 +664,73 @@ function obtenerDocumentosObligatorios() {
                 <p>
                     Yo, <strong>{{ nombreRepresentante || '___________________' }}</strong>,
                     en calidad de representante de <strong>{{ razonSocial || '___________________' }}</strong>,
-                    identificado(a) con <strong>{{ tipoDocumentoRepresentante || '___________________' }}</strong> y <strong>{{ numeroIdentificacion || '___________________' }}</strong>,
-                    actuando en nombre propio y/o en representación de mi empresa, declaro bajo la gravedad de juramento lo siguiente:
+                    identificado(a) con <strong>{{ tipoDocumentoRepresentante || '___________________' }}</strong> y
+                    <strong>{{ numeroIdentificacion || '___________________' }}</strong>,
+                    actuando en nombre propio y/o en representación de mi empresa, declaro bajo la gravedad de juramento
+                    lo
+                    siguiente:
                 </p>
                 <ol class="q-ml-md">
                     <li class="text-weight-bold q-mt-md">Ausencia de Conflicto de Interés:</li>
                     <p>
-                        Confirmo que, hasta la fecha, no existe ningún tipo de relación personal, financiera, laboral o de cualquier otra índole con empleados, representantes o accionistas de <strong>PCH SAN BARTOLOME SAS ESP</strong>,
-                        que pueda generar un conflicto de intéres directo o indirecto en la relación comercial que mantenemos.
+                        Confirmo que, hasta la fecha, no existe ningún tipo de relación personal, financiera, laboral o
+                        de
+                        cualquier otra índole con empleados, representantes o accionistas de <strong>PCH SAN BARTOLOME
+                            SAS
+                            ESP</strong>,
+                        que pueda generar un conflicto de intéres directo o indirecto en la relación comercial que
+                        mantenemos.
                     </p>
                     <li class="text-weight-bold q-mt-md">Declaración de Situaciones Potenciales:</li>
                     <p>
-                        En caso de que en el futuro surja alguna situación que pueda ser considerada un conflicto de interés, 
-                        me comprometo a notifcar de manera inmediata y por escrito a <strong>PCH SAN BARTOLOME SAS ESP</strong> para proceder a gestionar la situación según las políticas de la compañía.
+                        En caso de que en el futuro surja alguna situación que pueda ser considerada un conflicto de
+                        interés,
+                        me comprometo a notifcar de manera inmediata y por escrito a <strong>PCH SAN BARTOLOME SAS
+                            ESP</strong> para proceder a gestionar la situación según las políticas de la compañía.
                     </p>
                     <li class="text-weight-bold q-mt-md">Compromiso Ético</li>
                     <p>
-                        Aseguro que todas las interacciones y transacciones realizadas entre <strong>{{ razonSocial || '___________________' }}</strong> y <strong>PCH SAN BARTOLOME SAS ESP</strong>
-                        estarán alineados con principios éticos, legales y transparentes, buscando en todo momento la equidad y el beneficio mutuo.
+                        Aseguro que todas las interacciones y transacciones realizadas entre <strong>{{ razonSocial ||
+                            '___________________' }}</strong> y <strong>PCH SAN BARTOLOME SAS ESP</strong>
+                        estarán alineados con principios éticos, legales y transparentes, buscando en todo momento la
+                        equidad y el beneficio mutuo.
                     </p>
                 </ol>
                 <p class="q-mt-md">
-                    La presente autorización, se firma a los <strong>{{ dia }}</strong> días del mes de <strong>{{ mes }}</strong> del año <strong>{{ año }}</strong>
+                    La presente autorización, se firma a los <strong>{{ dia }}</strong> días del mes de <strong>{{ mes
+                    }}</strong> del año <strong>{{ año }}</strong>
                 </p>
-                <p>Nombre del Representante Legal: <strong>{{ nombreRepresentante || '___________________' }}</strong></p>
+                <p>Nombre del Representante Legal: <strong>{{ nombreRepresentante || '___________________' }}</strong>
+                </p>
                 <p>Cédula de Ciudadanía: <strong>{{ numeroIdentificacion || '___________________' }}</strong></p>
             </q-card-section>
 
             <div class="q-mt-lg q-pa-md bg-grey-2 rounded-borders">
-                <q-checkbox
-                    v-model="firmaAceptadaConflictos"
-                    label="Firmo digitalmente este documento al marcar esta casilla"
-                    color="primary"
-                />
+                <q-checkbox v-model="firmaAceptadaConflictos"
+                    label="Firmo digitalmente este documento al marcar esta casilla" color="primary" />
                 <p>
-                    Al aceptar, declaro que la información es verídica y doy mi consentimiento el {{ fechaFirmaConflictos || '___________________' }}
+                    Al aceptar, declaro que la información es verídica y doy mi consentimiento el {{
+                        fechaFirmaConflictos ||
+                        '___________________' }}
                 </p>
 
             </div>
 
             <q-card-actions align="right">
-                <q-btn 
-                flat 
-                label="Cerrar sin aceptar" 
-                color="grey" 
-                v-close-popup
-                />
+                <q-btn flat label="Cerrar sin aceptar" color="grey" v-close-popup />
 
-                <q-btn
-                flat 
-                label="He leído y acepto" 
-                color="primary" 
-                :disable="!firmaAceptadaConflictos"
-                @click="aceptarYCerrarConflictos"
-                />
+                <q-btn flat label="He leído y acepto" color="primary" :disable="!firmaAceptadaConflictos"
+                    @click="aceptarYCerrarConflictos" />
             </q-card-actions>
 
         </q-card>
-     </q-dialog>
+    </q-dialog>
 </template>
 
 <style scoped lang="scss">
-*{
+* {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
-
 </style>

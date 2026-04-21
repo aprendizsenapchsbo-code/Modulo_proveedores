@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import apiClient from '../services/axios.js';
 import axios from 'axios';
 
 import { exitoNotify, errorNotify } from '../composables/Notify';
-import { useUsuarioStore } from '../stores/usuario';
+import { useUsuarioStore } from '../stores/usuario.js';
 
 const email = ref('')
 const password = ref('')
@@ -12,6 +13,7 @@ const isPwd = ref(true)
 const loading = ref(false)
 const usuarioStore = useUsuarioStore()
 const router = useRouter()
+const route = useRoute()
 
 // Validaciones de rules
 const emailRules = [
@@ -25,11 +27,23 @@ const passwordRules = [
     val => (val && val.length > 0) || 'El campo contraseña es obligatorio'
 ]
 
+async function handleLogin() {
+    try {
+        await usuarioStore.usuario(credentials)
+
+        //lógica de redirección
+        const redirectPath = route.query.redirect || '/'
+        router.push(redirectPath)
+    } catch (error) {
+        console.log('Error al redireccionar', error);
+    }
+}
+
 async function login() {
     loading.value = true
     try {
 
-        const r = await axios.post("https://modulo-proveedores-backend.vercel.app/api/usuario/login", {
+        const r = await apiClient.post("api/usuario/login", {
             email: email.value,
             password: password.value
         });

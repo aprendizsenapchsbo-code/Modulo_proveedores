@@ -5,6 +5,7 @@ import { useUsuarioStore } from '../stores/usuario';
 import { useProveedorStore } from '../stores/proveedor.js';
 import axios from 'axios';
 import { exitoNotify, errorNotify } from '../composables/Notify';
+import apiClient from '../services/axios.js';
 
 const router = useRouter()
 const usuarioStore = useUsuarioStore()
@@ -44,8 +45,7 @@ const optionsEstado = [
 ]
 
 function logout() {
-    usuarioStore.clearUsuario();
-    usuarioStore.clearToken();
+    usuarioStore.clearAuth();
     router.push('/')
 
     console.log("Sesión cerrada");
@@ -185,7 +185,7 @@ async function enviarInvitacion() {
     loading.value = true
     try {
 
-        const respuesta = await axios.post('https://modulo-proveedores-backend.vercel.app/api/proveedor/registro', {
+        const respuesta = await apiClient.post('api/proveedor/registro', {
             CorreoElectronico: CorreoElectronico.value
         })
 
@@ -253,37 +253,37 @@ const columns = [
     },
     {
         name: 'NombreRepresentante',
-        label: 'Nombre del Representante',
+        label: 'Nombre Representante Legal',
         field: 'NombreRepresentante',
         sortable: true
       },
-      /* {
+      {
         name: 'NumeroIdentificacion',
-        label: 'Número de Identificación',
+        label: 'Número Identificación Representante Legal',
         field: 'NumeroIdentificacion',
         sortable: true,
-      }, */
+      },
       {
         name: 'TelefonoRepresentante',
-        label: 'Teléfono del Representante',
+        label: 'Teléfono Representante Legal',
         field: 'TelefonoRepresentante',
         sortable: true,
       },
       {
         name: 'CorreoElectronicoRepresentante',
-        label: 'Correo Electrónico del Representante',
+        label: 'Correo Electrónico Representante Legal',
         field: 'CorreoElectronicoRepresentante',
         sortable: true,
       },
       {
         name: 'NombresApellidosResponsable',
-        label: 'Nombres y Apellidos del Responsable',
+        label: 'Nombres Responsable de Facturación',
         field: 'NombresApellidosResponsable',
         sortable: true,
       },
       {
         name: 'CorreoElectronicoResponsable',
-        label: 'Correo Electrónico del Responsable',
+        label: 'Correo Electrónico Responsable de Facturación',
         field: 'CorreoElectronicoResponsable',
         sortable: true,
       },
@@ -307,7 +307,7 @@ const rows = ref([]);
 async function obtenerProveedores() {
     loading.value = true;
     try {
-        const response = await axios.get('https://modulo-proveedores-backend.vercel.app/api/proveedor', {
+        const response = await apiClient.get('api/proveedor', {
             headers: {
                 'x-token': ` ${usuarioStore.token}`
             }
@@ -342,7 +342,7 @@ async function eliminarProveedor(proveedor) {
     loading.value = true;
     try {
         console.log('Eliminando proveedor:', proveedor._id);
-        await axios.delete(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${proveedor._id}`);
+        await apiClient.delete(`api/proveedor/${proveedor._id}`);
         exitoNotify('Proveedor eliminado exitosamente');
         obtenerProveedores(); // Recargar la lista
     } catch (error) {
@@ -367,7 +367,7 @@ async function editarProveedor() {
         const { _id, ...datosParaActualizar } = formDataEdit.value;
 
         
-        const r = await axios.put(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${_id}`, datosParaActualizar);
+        const r = await apiClient.put(`api/proveedor/${_id}`, datosParaActualizar);
             
         console.log('Proveedor actualizado', r.data);
         exitoNotify('Proveedor actualizado exitosamente');
@@ -386,7 +386,7 @@ async function solicitarActualizacionProveedor(proveedor) {
     loading.value = true;
     try {
         console.log('Solicitando actualización para proveedor:', proveedor._id);
-        await axios.put(`https://modulo-proveedores-backend.vercel.app/api/proveedor/${proveedor._id}/solicitar-actualizacion`);
+        await apiClient.put(`api/proveedor/${proveedor._id}/solicitar-actualizacion`);
         exitoNotify('Solicitud de actualización enviada al proveedor');
 
         obtenerProveedores(); // Recargar la lista para reflejar cambios

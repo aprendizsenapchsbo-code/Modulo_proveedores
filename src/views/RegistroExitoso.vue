@@ -29,7 +29,7 @@ function cerrarPestaña() {
                 color="primary"
                 size="lg"
                 style="width: 100%;"
-                @click="cerrarPestaña()"
+                @click="cerrarPestaña"
             />
         </div>
     </div>

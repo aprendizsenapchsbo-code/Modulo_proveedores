@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router';
 import { useAprobarPreRegistroStore } from '../stores/aprobarPreRegistro.js';
 import { useUsuarioStore } from '../stores/usuario.js';
 import { errorNotify, exitoNotify } from '../composables/Notify.js';
+import apiClient from '../services/axios.js';
 
 const route = useRoute()
 const aprobarPreRegistro = useAprobarPreRegistroStore();
@@ -81,8 +82,8 @@ async function aprobarProveedor() {
     }
 
     try {
-        const res = await axios.post(
-            `https://modulo-proveedores-backend.vercel.app/api/proveedor/aprobar/pre-registro/${aprobarPreRegistro.idProveedor}`,
+        const res = await apiClient.post(
+            `api/proveedor/aprobar/pre-registro/${aprobarPreRegistro.idProveedor}`,
             {},
             {
                 headers: {
@@ -91,7 +92,7 @@ async function aprobarProveedor() {
             }
         );
         console.log(res);
-        errorNotify(res.msg)
+        exitoNotify(res.msg)
     } catch (error) {
         console.log('Error al aprobar el proveedor: ', error);
         errorNotify(error.response?.data?.msg || 'Error al aprobar el proveedor');
@@ -114,7 +115,7 @@ async function rechazarProveedor () {
     }
 
     try {
-        const res = await axios.post(`https://modulo-proveedores-backend.vercel.app/api/proveedor/rechazar/pre-registro/${aprobarPreRegistro.idProveedor}`,
+        const res = await apiClient.post(`api/proveedor/rechazar/pre-registro/${aprobarPreRegistro.idProveedor}`,
             {comentario: comentario.value},
             {
                 headers: {
@@ -215,7 +216,7 @@ const descargarDocumento = (url, nombre) => {
             <p>Cargando datos...</p>
         </div>
 
-        <div v-else-if="aprobarPreRegistro.error">
+        <div v-else-if="aprobarPreRegistro.error" class="text-center">
             <p>{{ aprobarPreRegistro.error }}</p>
             <q-btn label="Reintentar" @click="recargar" class="q-p-sm" />
         </div>

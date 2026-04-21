@@ -1,31 +1,30 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 export const useUsuarioStore = defineStore('usuario', () => {
-    let usuario = ref(JSON.parse(localStorage.getItem('usuario')) || null);
-    let token = ref(localStorage.getItem('token') || null);
+    let usuario = ref(null);
+    let token = ref(null);
+
+    const estaAutenticado = computed(() => !!token.value)
 
     function setUsuario(data) {
         usuario.value = data;
-        localStorage.setItem('usuario', JSON.stringify(data));
     }
 
     function setToken(data) {
         token.value = data;
-        localStorage.setItem('token', data);
     }
 
-    function clearUsuario() {
+    function clearAuth() {
         usuario.value = null;
-        localStorage.removeItem('usuario');
-    }
-
-    function clearToken() {
         token.value = null;
-        localStorage.removeItem('token');
     }
 
-    return { usuario, token, setUsuario, setToken, clearUsuario, clearToken  }
+    return { usuario, token, estaAutenticado, setUsuario, setToken, clearAuth  }
 }, {
-    persist: true
+    persist: {
+        key: 'auth.store',
+        storage: localStorage,
+        paths: ['usuario']  //Solo persistir estos campos
+    }
 })
