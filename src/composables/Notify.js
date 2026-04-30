@@ -1,19 +1,17 @@
 import { Notify } from "quasar";
 
-const exitoNotify = function(message) {
-    return Notify.create({
+export const exitoNotify = (message) => {
+    Notify.create({
         type: 'positive',
         message: message,
         position: 'top-right'
     });
 }
 
-const errorNotify = function(error) {
-    return Notify.create({
+export const errorNotify = (error) => {
+    Notify.create({
         type: 'negative',
         message: error,
         position: 'top'
     });
 }
-
-export { exitoNotify, errorNotify };

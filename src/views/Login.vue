@@ -70,6 +70,9 @@ async function login() {
     }
 }
 
+defineExpose({
+    login
+})
 </script>
 
 <template>
