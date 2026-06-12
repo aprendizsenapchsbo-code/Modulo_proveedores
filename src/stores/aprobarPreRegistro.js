@@ -4,15 +4,15 @@ import axios from "axios";
 
 export const useAprobarPreRegistroStore = defineStore("aprobacionPreRegistro", () => {
     const preRegistroAprobar = ref(null);
-    const idProveedor = ref(null);
+    const razonSocialProveedor = ref(null);
     const loading = ref(false);
     const error = ref(null);
 
     // Función para obtener el proveedor mediante el id
-    async function proveedorData(id) {
-        console.log('Proveedor enocntrado: ', id)
+    async function proveedorData(razonSocial) {
+        console.log('Proveedor enocntrado: ', razonSocial)
         // Se guarda el ID localmente
-        idProveedor.value = id;
+        razonSocialProveedor.value = razonSocial;
 
         // Inicio de estado de carga
         loading.value = true;
@@ -21,7 +21,7 @@ export const useAprobarPreRegistroStore = defineStore("aprobacionPreRegistro", (
 
         try {
             const timestamp = new Date().getTime();
-            const url = `https://modulo-proveedores-backend.vercel.app/api/proveedor/${id}?t=${timestamp}`;
+            const url = `https://modulo-proveedores-backend.vercel.app/api/proveedor/${razonSocial}?t=${timestamp}`;
 
             // Obtenemos la data llamando al backend
             const response = await axios.get(url);
@@ -44,24 +44,24 @@ export const useAprobarPreRegistroStore = defineStore("aprobacionPreRegistro", (
         preRegistroAprobar.value = data;
     }
 
-    function setIdProveedor(id) {
-        idProveedor.value = id;
+    function setRazonSocialProveedor(razonSocial) {
+        razonSocialProveedor.value = razonSocial;
     }
 
     function clearData() {
         preRegistroAprobar.value = null;
-        idProveedor.value = null;
+        razonSocialProveedor.value = null;
         error.value = null;
     }
 
     return {
         preRegistroAprobar,
-        idProveedor,
+        razonSocialProveedor,
         loading,
         error,
         proveedorData,
         setPreRegistroAprobar,
-        setIdProveedor,
+        setRazonSocialProveedor,
         clearData
     };
 

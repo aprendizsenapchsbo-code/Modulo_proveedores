@@ -15,4 +15,16 @@ export default defineConfig({
       )
     })
   ],
+  base: '/wp-content/themes/popularfx/vue-app/',
+  build: {
+    target: 'es2015',
+    rollupOptions: {
+      output: {
+        format: 'iife',
+        globals: {
+          vue: 'Vue'
+        }
+      }
+    }
+  }
 })

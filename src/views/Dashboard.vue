@@ -7,6 +7,8 @@ import axios from 'axios';
 import { exitoNotify, errorNotify } from '../composables/Notify';
 import apiClient from '../services/axios.js';
 
+import logo from '../assets/img/Logo_login.png';
+
 const router = useRouter()
 const usuarioStore = useUsuarioStore()
 const proveedorStore = useProveedorStore()
@@ -142,28 +144,61 @@ const rowsFiltradas = computed(() => {
 // Función para filtrar por tipo
 
 // Función para abrir el documento en una nueva pestaña
-const abrirDocumento = (url) => {
+const abrirDocumento = async (url) => {
+    // console.log('Documento a abrir:', documento.url)
     if (!url) {
         errorNotify('URL del documento no disponible')
         return;
     }
-    window.open(url, '_blank', 'noopener,noreferrer');
+
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'x-token': usuarioStore.token
+            }
+        });
+        
+        if (!response.ok) throw new Error('Error al obtener el documento');
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+
+        // Limpiar la URL después de un tiempo
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (error) {
+        console.error(error)
+        errorNotify('No se pudo abrir el documento');
+    }
 };
 
 // Función para forzar la descarga del documento
-const descargarDocumento = (url, nombre) => {
+const descargarDocumento = async (url, nombre) => {
     if (!url) {
         errorNotify('URL del documento no disponible')
         return;
     }
-    // Crear link temporal para forzar descarga
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = nombre || 'documento';
-    link.target = 'noopener,noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link)
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'x-token': usuarioStore.token
+            }
+        });
+        if (!response.ok) throw new Error('Error al obtener el documento');
+
+        const blob = await response.blob();
+        const link = document.createElement('a');
+        const blobUrl = URL.createObjectURL(blob);
+        link.href = blobUrl;
+        link.download = nombre || 'documento';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+
+    } catch (error) {
+        console.error(error)
+        errorNotify('No se pudo descargar el documento');
+    }
 };
 
 // Función abrir modal para visualizar la información del proveedor
@@ -187,6 +222,10 @@ async function enviarInvitacion() {
 
         const respuesta = await apiClient.post('api/proveedor/registro', {
             CorreoElectronico: CorreoElectronico.value
+        }, {
+            headers: {
+                'x-token': ` ${usuarioStore.token} `
+            }
         })
 
         console.log('Solicitud enviada:', respuesta.data);
@@ -202,7 +241,7 @@ async function enviarInvitacion() {
         proveedorStore.setTokenRegistro(token);
         console.log('Token de registro guardado:', token);
 
-        exitoNotify(`¡Solicitud enviada a ${CorreoElectronico.value}. Link válido por 5 días!`);
+        exitoNotify(`¡Solicitud enviada a ${CorreoElectronico.value}. Link válido por 7 días!`);
 
     } catch (error) {
         console.error('Error al enviar la invitación:', error);
@@ -307,11 +346,7 @@ const rows = ref([]);
 async function obtenerProveedores() {
     loading.value = true;
     try {
-        const response = await apiClient.get('api/proveedor', {
-            headers: {
-                'x-token': ` ${usuarioStore.token}`
-            }
-        });
+        const response = await apiClient.get('api/proveedor');
         // const r = response.data
         console.log('Proveedores', response.data);
         
@@ -341,8 +376,8 @@ async function eliminarProveedor(proveedor) {
 
     loading.value = true;
     try {
-        console.log('Eliminando proveedor:', proveedor._id);
-        await apiClient.delete(`api/proveedor/${proveedor._id}`);
+        console.log('Eliminando proveedor:', proveedor.RazonSocial);
+        await apiClient.delete(`api/proveedor/${proveedor.RazonSocial}`);
         exitoNotify('Proveedor eliminado exitosamente');
         obtenerProveedores(); // Recargar la lista
     } catch (error) {
@@ -358,16 +393,16 @@ async function editarProveedor() {
     // const proveedor = proveedorEditando.value;
     loading.value = true;
     try {
-        console.log('ID proveedor:', formDataEdit.value._id);
-        if (!formDataEdit.value._id) {
-        errorNotify('Error: No se encontró el ID del proveedor');
+        console.log('Razón Social proveedor:', formDataEdit.value.RazonSocial);
+        if (!formDataEdit.value.RazonSocial) {
+        errorNotify('Error: No se encontró la razón social del proveedor');
         return;
     }
 
-        const { _id, ...datosParaActualizar } = formDataEdit.value;
+        const { RazonSocial, ...datosParaActualizar } = formDataEdit.value;
 
         
-        const r = await apiClient.put(`api/proveedor/${_id}`, datosParaActualizar);
+        const r = await apiClient.put(`api/proveedor/${RazonSocial}`, datosParaActualizar);
             
         console.log('Proveedor actualizado', r.data);
         exitoNotify('Proveedor actualizado exitosamente');
@@ -385,8 +420,8 @@ async function editarProveedor() {
 async function solicitarActualizacionProveedor(proveedor) {
     loading.value = true;
     try {
-        console.log('Solicitando actualización para proveedor:', proveedor._id);
-        await apiClient.put(`api/proveedor/${proveedor._id}/solicitar-actualizacion`);
+        console.log('Solicitando actualización para proveedor:', proveedor.RazonSocial);
+        await apiClient.put(`api/proveedor/${proveedor.RazonSocial}/solicitar-actualizacion`);
         exitoNotify('Solicitud de actualización enviada al proveedor');
 
         obtenerProveedores(); // Recargar la lista para reflejar cambios
@@ -405,7 +440,7 @@ async function solicitarActualizacionProveedor(proveedor) {
             <div class="header">
                 <div class="rol-admin" style="display: flex; align-items: center; gap: 10px;">
                     <div class="icono">
-                        <img src="../assets/Logo_login.png" alt="Icono San Bartolomé" style="width: 100px; ">
+                        <img :src="logo" alt="Icono San Bartolomé" style="width: 100px; ">
                     </div>
                     <span class="bg-secondary text-white q-px-md q-py-sm rounded-borders">{{
                         usuarioStore.usuario?.nombre }} - {{ usuarioStore.usuario?.rol }} 
@@ -708,18 +743,18 @@ async function solicitarActualizacionProveedor(proveedor) {
                                     </q-item-section>
                                 </q-item>
 
-                                <q-item v-for="(doc, index) in (formDataView.Documentos || [])" :key="index">
+                                <q-item v-for="(documento, index) in (formDataView.Documentos || [])" :key="index">
                                     <q-item-section avatar>
                                         <q-icon 
-                                            :name="getIconDocumento(doc.nombre, doc.formato, doc.url)" 
-                                            :color="getColorDocumento(doc.tipo)" 
+                                            :name="getIconDocumento(documento.nombre, documento.formato, documento.url)" 
+                                            :color="getColorDocumento(documento.tipo)" 
                                             size="28px" 
                                         />
                                     </q-item-section>
                                     
                                     <q-item-section>
-                                        <q-item-label class="text-weight-bold">{{ doc.tipo }}</q-item-label>
-                                        <q-item-label caption>{{ doc.nombre }}</q-item-label>
+                                        <q-item-label class="text-weight-bold">{{ documento.tipo }}</q-item-label>
+                                        <q-item-label caption>{{ documento.nombre }}</q-item-label>
                                     </q-item-section>
 
                                     <q-item-section side>
@@ -730,7 +765,7 @@ async function solicitarActualizacionProveedor(proveedor) {
                                                 dense 
                                                 icon="visibility" 
                                                 color="primary" 
-                                                @click="abrirDocumento(doc.url)"
+                                                @click="abrirDocumento(documento.url)"
                                             >
                                                 <q-tooltip>Ver</q-tooltip>
                                             </q-btn>
@@ -740,7 +775,7 @@ async function solicitarActualizacionProveedor(proveedor) {
                                                 dense 
                                                 icon="download" 
                                                 color="secondary" 
-                                                @click="descargarDocumento(doc.url, doc.nombre)"
+                                                @click="descargarDocumento(documento.url, documento.nombre)"
                                             >
                                                 <q-tooltip>Descargar</q-tooltip>
                                             </q-btn>
@@ -873,35 +908,35 @@ async function solicitarActualizacionProveedor(proveedor) {
                                     <!-- Lista de documentos -->
                                     <q-list bordered separator class="rounded-borders bg-grey-1">
                                         <!-- Caso: No hay documentos -->
-                                         <q-item v-if="!formDataEdit.Documentos || formDataEdit.Documentos.length === 0">
+                                        <q-item v-if="!formDataEdit.Documentos || formDataEdit.Documentos.length === 0">
                                             <q-item-section>
                                                 <q-item-label class="text-grey-7">Sin documentos cargados</q-item-label>
                                             </q-item-section>
-                                         </q-item>
+                                        </q-item>
 
                                          <!-- Caso: Si hay documentos -->
-                                          <q-item
+                                        <q-item
                                             v-for="(doc, index) in formDataEdit.Documentos"
                                             :key="index"
                                             class="q-py-sm"
                                             >
                                             <!-- Icono según tipo de archivo -->
-                                             <q-item-section avatar>
+                                            <q-item-section avatar>
                                                 <q-icon
                                                     :name="getIconDocumento(doc.nombre, doc.formato, doc.url)"
                                                     :color="getColorDocumento(doc.tipo)"
                                                     size="24px"
                                                 />
-                                             </q-item-section>
+                                            </q-item-section>
 
                                             <!-- Info del documento -->
-                                             <q-item-section>
+                                            <q-item-section>
                                                 <q-item-label class="text-weight-bold text-accent">{{ doc.tipo }}</q-item-label>
                                                 <q-item-label caption class="text-grey-7">{{ doc.nombre }}</q-item-label>
-                                             </q-item-section>
+                                            </q-item-section>
 
                                              <!-- Acciones: Ver/Descargar -->
-                                              <q-item-section side>
+                                            <q-item-section side>
                                                 <q-btn-group flat>
                                                     <q-btn
                                                         flat
@@ -924,7 +959,7 @@ async function solicitarActualizacionProveedor(proveedor) {
                                                     <q-tooltip>Descargar</q-tooltip>
                                                     </q-btn>
                                                 </q-btn-group>
-                                              </q-item-section>
+                                            </q-item-section>
                                         </q-item>
 
                                     </q-list>

@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router';
 import apiClient from '../services/axios.js';
 import axios from 'axios';
 
+import logo from '../assets/img/Logo_login.png'
+
 import { exitoNotify, errorNotify } from '../composables/Notify';
 import { useUsuarioStore } from '../stores/usuario.js';
 
@@ -48,16 +50,16 @@ async function login() {
             password: password.value
         });
 
-        console.log("Login exitoso: ", r.data.data.usuario);
+        console.log("Login exitoso: ", r.data);
         // console.log("Token: ", r.data.data.token);
 
-        usuarioStore.setUsuario(r.data.data.usuario); // Guardar el usuario en el store
-        usuarioStore.setToken(r.data.data.token); // Guardar el token en el store
+        usuarioStore.setUsuario(r.data.usuario); // Guardar el usuario en el store
+        usuarioStore.setToken(r.data.token); // Guardar el token en el store
 
         // console.log('Usuario guardado:', usuarioStore.usuario);
         // console.log('Token guardado:', usuarioStore.token);
 
-        exitoNotify(`¡Bienvenido, ${usuarioStore.usuario.nombre}!`);
+        exitoNotify(`¡Bienvenido, ${r.data.usuario.nombre}!`);
 
         router.push('/dashboard')
         
@@ -78,7 +80,7 @@ async function login() {
             <h1 class="titulo">Sistema Gestión de Proveedores</h1>
 
             <div class="logoLogin">
-                <img class="logo q-mb-xl" src="../assets/Logo_login.png" alt="Logo_del_Login">
+                <img class="logo q-mb-xl" :src="logo" alt="Logo">
             </div>
 
             <q-form @submit.prevent="login">

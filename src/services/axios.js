@@ -3,7 +3,7 @@ import { useUsuarioStore } from "../stores/usuario.js"
 import { router } from "../routes/router.js";
 
 const apiClient = axios.create({
-    baseURL: 'https://modulo-proveedores-backend.vercel.app/',
+    baseURL: 'http://localhost:3001/',
     headers: {
         'Content-Type': 'application/json'
     }
@@ -14,7 +14,7 @@ apiClient.interceptors.request.use(
     (config) => {
         const usuarioStore = useUsuarioStore();
         if (usuarioStore.token) {
-            config.headers.Authorization = `Bearer ${usuarioStore.token}`;
+            config.headers['x-token'] = usuarioStore.token;
         }
         return config;
     },

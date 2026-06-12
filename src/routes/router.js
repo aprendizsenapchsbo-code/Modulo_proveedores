@@ -5,6 +5,7 @@ import { useUsuarioStore } from "../stores/usuario.js";
 // import Login from "../views/Login.vue";
 import Dashboard from "../views/Dashboard.vue";
 import ViewProveedor from "../views/ViewProveedor.vue";
+import ViewTokenExpirado from "../views/ViewTokenExpirado.vue";
 import registroExitoso from "../views/RegistroExitoso.vue";
 import AprobacionPreRegistro from "../views/AprobarPreRegistro.vue"
 
@@ -12,6 +13,7 @@ const routes = [
     {path: '/', component: () => import('../views/Login.vue')},
     {path: '/dashboard', component: Dashboard, meta: {requiresAuth: true}},
     {path: '/formulario-proveedor/:token', component: ViewProveedor},
+    {path: '/token-invalido', component: ViewTokenExpirado},
     {path: '/registro-exitoso', component: registroExitoso},
     {path: '/aprobacion-pre-registro/:id', component: AprobacionPreRegistro, meta: {requiresAuth: true}},
 ]
