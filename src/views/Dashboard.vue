@@ -17,7 +17,7 @@ const CorreoElectronico = ref('');
 
 const totalProveedores = ref(0);
 const totalProveedoresPendientes = ref(0);
-const cumplimiientoGeneral = ref(0);
+const cumplimientoGeneral = ref(0);
 
 const formDataView = ref({});
 const formDataEdit = ref({});
@@ -242,6 +242,7 @@ async function enviarInvitacion() {
         console.log('Token de registro guardado:', token);
 
         exitoNotify(`¡Solicitud enviada a ${CorreoElectronico.value}. Link válido por 7 días!`);
+        obtenerProveedores();
 
     } catch (error) {
         console.error('Error al enviar la invitación:', error);
@@ -260,82 +261,113 @@ const columns = [
         label: 'NIT',
         align: 'left',
         field: 'NIT',
-        sortable: true
+        sortable: true,
+        headerProps: { 'data-th': 'NIT' },
+        props: { 'data-th': 'NIT' }
     },
     {
         name: 'RazonSocial',
         align: 'center',
         label: 'Razón Social',
         field: 'RazonSocial',
-        sortable: true
+        sortable: true,
+        headerProps: { 'data-th': 'RazonSocial' },
+        props: { 'data-th': 'RazonSocial' }
     },
     { 
-      name: 'DireccionNotificacion', 
-      label: 'Dirección de notificación', 
-      field: 'DireccionNotificacion', 
-      sortable: true 
+        name: 'DireccionNotificacion', 
+        label: 'Dirección de notificación', 
+        field: 'DireccionNotificacion', 
+        sortable: true,
+        headerProps: { 'data-th': 'DireccionNotificacion' },
+        props: { 'data-th': 'DireccionNotificacion' }
     },
     { 
-      name: 'Telefono', 
-      label: 'Teléfono', 
-      field: 'Telefono'
+        name: 'Telefono', 
+        label: 'Teléfono', 
+        field: 'Telefono',
+        headerProps: { 'data-th': 'Telefono' },
+        props: { 'data-th': 'Telefono' }
     },
     { 
-      name: 'Ciudad', 
-      label: 'Ciudad', 
-      field: 'Ciudad' 
+        name: 'Ciudad', 
+        label: 'Ciudad', 
+        field: 'Ciudad',
+        headerProps: { 'data-th': 'Ciudad' },
+        props: { 'data-th': 'Ciudad' }
     },
     {
         name: 'CorreoElectronico',
         label: 'Correo Electrónico',
-        field: 'CorreoElectronico'
+        field: 'CorreoElectronico',
+        headerProps: { 'data-th': 'CorreoElectronico' },
+        props: { 'data-th': 'CorreoElectronico' }
     },
     {
         name: 'NombreRepresentante',
         label: 'Nombre Representante Legal',
         field: 'NombreRepresentante',
-        sortable: true
+        sortable: true,
+        headerProps: { 'data-th': 'NombreRepresentante' },
+        props: { 'data-th': 'NombreRepresentante' }
       },
       {
         name: 'NumeroIdentificacion',
         label: 'Número Identificación Representante Legal',
         field: 'NumeroIdentificacion',
         sortable: true,
+        headerProps: { 'data-th': 'NumeroIdentificacion' },
+        props: { 'data-th': 'NumeroIdentificacion' }
       },
       {
         name: 'TelefonoRepresentante',
         label: 'Teléfono Representante Legal',
         field: 'TelefonoRepresentante',
         sortable: true,
+        headerProps: { 'data-th': 'TelefonoRepresentante' },
+        props: { 'data-th': 'TelefonoRepresentante' }
       },
       {
         name: 'CorreoElectronicoRepresentante',
         label: 'Correo Electrónico Representante Legal',
         field: 'CorreoElectronicoRepresentante',
         sortable: true,
+        headerProps: { 'data-th': 'CorreoElectronicoRepresentante' },
+        props: { 'data-th': 'CorreoElectronicoRepresentante' }
       },
       {
         name: 'NombresApellidosResponsable',
         label: 'Nombres Responsable de Facturación',
         field: 'NombresApellidosResponsable',
         sortable: true,
+        headerProps: { 'data-th': 'NombresApellidosResponsable' },
+        props: { 'data-th': 'NombresApellidosResponsable' }
       },
       {
         name: 'CorreoElectronicoResponsable',
         label: 'Correo Electrónico Responsable de Facturación',
         field: 'CorreoElectronicoResponsable',
         sortable: true,
+        headerProps: { 'data-th': 'CorreoElectronicoResponsable' },
+        props: { 'data-th': 'CorreoElectronicoResponsable' }
       },
     {
         name: 'estadoProveedor',
         label: 'Estado',
         field: 'estadoProveedor',
         sortable: true,
+        align: 'center',
+        headerProps: { 'data-th': 'estadoProveedor' },
+        props: { 'data-th': 'estadoProveedor' }
     },
     {
         name: 'Opciones',
         label: 'Opciones',
         field: 'Opciones',
+        align: 'center',
+        style: 'min-width: 180px',
+        headerProps: { 'data-th': 'Opciones' },
+        props: { 'data-th': 'Opciones' }
     }
 ]
 
@@ -351,13 +383,15 @@ async function obtenerProveedores() {
         console.log('Proveedores', response.data);
         
         totalProveedores.value = response.data.data.length;
-        console.log(totalProveedores);
 
-        totalProveedoresPendientes.value = response.data.data.filter(p => p.estadoProveedor === 'Pendiente Actualización').length;
-        console.log(totalProveedoresPendientes);
+        const pendientes = response.data.data.filter(p => p.estadoProveedor === 'Pendiente Actualización').length;
+        totalProveedoresPendientes.value = pendientes;
 
-        cumplimiientoGeneral.value = Math.round(((totalProveedores.value - totalProveedoresPendientes.value) / totalProveedores.value) * 100);
-        console.log(cumplimiientoGeneral);
+        if (totalProveedores.value > 0) {
+            cumplimientoGeneral.value = Math.round(((totalProveedores.value - pendientes) / totalProveedores.value) * 100);
+        } else {
+            cumplimientoGeneral.value = 0;
+        }
 
         rows.value = response.data.data
 
@@ -442,8 +476,9 @@ async function solicitarActualizacionProveedor(proveedor) {
                     <div class="icono">
                         <img :src="logo" alt="Icono San Bartolomé" style="width: 100px; ">
                     </div>
-                    <span class="bg-secondary text-white q-px-md q-py-sm rounded-borders">{{
-                        usuarioStore.usuario?.nombre }} - {{ usuarioStore.usuario?.rol }} 
+                    <span class="bg-secondary text-white q-px-md q-py-sm rounded-borders text-no-wrap">{{
+                        usuarioStore.usuario?.nombre }}
+                        <span v-if="$q.screen.gt.xs"> - {{ usuarioStore.usuario?.rol }}</span>
                     </span>
                 </div>
                 <div class="btn-logout">
@@ -462,7 +497,7 @@ async function solicitarActualizacionProveedor(proveedor) {
                     </div>
 
                     <div class="contenido2">
-                        <span class="numeroTotalProveedores text-h5 text-bold">{{ totalProveedores }}</span>
+                        <span class="numeroTotalProveedores text-h5 text-bold">{{ totalProveedores.toLocaleString('es-CO') }}</span>
                         <span class="porcentajeMensual text-primary">12% este mes</span>
                     </div>
                 </div>
@@ -486,7 +521,7 @@ async function solicitarActualizacionProveedor(proveedor) {
                     </div>
 
                     <div class="contenido2">
-                        <span class="numeroTotalProveedores text-h5 text-bold">{{ cumplimiientoGeneral }}%</span>
+                        <span class="numeroTotalProveedores text-h5 text-bold">{{ cumplimientoGeneral }}%</span>
                         <span class="porcentajeMensual text-grey-5">Requiere atención inmediata</span>
                     </div>
                 </div>
@@ -538,53 +573,59 @@ async function solicitarActualizacionProveedor(proveedor) {
                         title="Proveedores" 
                         :rows="rowsFiltradas" 
                         :columns="columns" 
+                        virtual-scroll
+                        :virtual-scroll-sticky-size-start="48"
                         row-key="_id" 
-                        :loading="loading
+                        :loading="loading"
+                        rows-per-page-label="Registros por página"
+                        no-data-label="No hay datos disponibles"
+                        loading-label="Cargando..."
                     ">
                         <!-- Personalizar columna de Opciones -->
                         <template v-slot:body-cell-Opciones="props">
                             <q-td :props="props">
                                 <!-- Botón para visualizar la información del proveedor -->
-                                 <q-btn
-                                    flat
-                                    icon="visibility"
-                                    color="accent"
-                                    @click="abrirModalVisualizar(props.row)"
-                                 >
-                                    <q-tooltip transition-show="scale" transition-hide="scale">
-                                        Visualizar información del proveedor
-                                    </q-tooltip>
-                                 </q-btn>
-                                <!-- Botón de editar -->
-                                <q-btn 
-                                    flat 
-                                    icon="edit" 
-                                    color="primary" 
-                                    @click="abrirModalEditar(props.row)"
-                                >
-                                    <q-tooltip transition-show="scale" transition-hide="scale">
-                                        Editar proveedor
-                                    </q-tooltip>
-                                </q-btn>
-                                <!-- Botón de eliminar -->
-                                <q-btn 
-                                    flat 
-                                    icon="delete" 
-                                    color="negative" 
-                                    @click="eliminarProveedor(props.row)" 
-                                />
-                                <!-- Botón solicitar actualización -->
-                                <q-btn 
-                                    flat 
-                                    icon="email" 
-                                    color="warning"
-                                    @click="solicitarActualizacionProveedor(props.row)
-                                ">
-                                    <q-tooltip transition-show="scale" transition-hide="scale">
-                                        Solicitar actualización al proveedor
-                                    </q-tooltip>
-                                </q-btn>
-
+                                <div class="row no-wrap q-gutter-xs">
+                                    <q-btn
+                                       flat
+                                       icon="visibility"
+                                       color="accent"
+                                       @click="abrirModalVisualizar(props.row)"
+                                    >
+                                       <q-tooltip transition-show="scale" transition-hide="scale">
+                                           Visualizar información del proveedor
+                                       </q-tooltip>
+                                    </q-btn>
+                                   <!-- Botón de editar -->
+                                   <q-btn 
+                                       flat 
+                                       icon="edit" 
+                                       color="primary" 
+                                       @click="abrirModalEditar(props.row)"
+                                   >
+                                       <q-tooltip transition-show="scale" transition-hide="scale">
+                                           Editar proveedor
+                                       </q-tooltip>
+                                   </q-btn>
+                                   <!-- Botón de eliminar -->
+                                   <q-btn 
+                                       flat 
+                                       icon="delete" 
+                                       color="negative" 
+                                       @click="eliminarProveedor(props.row)" 
+                                   />
+                                   <!-- Botón solicitar actualización -->
+                                   <q-btn 
+                                       flat 
+                                       icon="email" 
+                                       color="warning"
+                                       @click="solicitarActualizacionProveedor(props.row)
+                                   ">
+                                       <q-tooltip transition-show="scale" transition-hide="scale">
+                                           Solicitar actualización al proveedor
+                                       </q-tooltip>
+                                   </q-btn>
+                                </div>
                             </q-td>
                         </template>
                     </q-table>
@@ -626,8 +667,9 @@ async function solicitarActualizacionProveedor(proveedor) {
 
             <!-- SECCIÓN: MODAL DE VISUALIZACIÓN -->
             <section class="dialogoVisualizar">
-                <q-dialog v-model="persistentView" persistent transition-show="scale" transition-hide="scale">
-                    <q-card class="text-black" style="width: 800px; max-width: 95vw;">
+                <q-dialog v-model="persistentView" persistent transition-show="scale" transition-hide="scale"
+                :maximized="$q.screen.lt.md">
+                    <q-card class="text-black" style="max-width: 800px; width: 100%;">
                         
                         <!-- Encabezado -->
                         <q-card-section class="bg-accent text-white row items-center justify-between">
@@ -1007,12 +1049,13 @@ async function solicitarActualizacionProveedor(proveedor) {
     background-color: #f1f1f1;
 }
 
+/* HEADER */
 .contenidoHeader {
     display: flex;
-    // justify-content: space-between;
     align-items: center;
-    height: 70px;
+    min-height: 70px;
     background-color: white;
+    padding: 10px 0;
 }
 
 .contenidoHeader .header {
@@ -1021,6 +1064,19 @@ async function solicitarActualizacionProveedor(proveedor) {
     align-items: center;
     width: 95%;
     margin: 0px auto;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.rol-admin {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.rol-admin img {
+    max-width: 80px;
 }
 
 .contenido {
@@ -1030,88 +1086,138 @@ async function solicitarActualizacionProveedor(proveedor) {
 
 .logout {
     color: #0a2833;
-    border: 1px solid;
+    border: 1px solid #6BBB6B;
     border-radius: 12px;
-    border-color: #6BBB6B;
+    white-space: nowrap;
 }
 
 .estadisticas {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-    gap: 50px;
-    height: auto;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
 }
 
-.estadisticas .box1 {
+.estadisticas .box1,
+.estadisticas .box2,
+.estadisticas .box3 {
     display: grid;
     border-radius: 10px;
-    box-shadow: 0px 0px 4px rgba($color: #000000, $alpha: 0.7);
+    box-shadow: 0px 0px 4px rgba(0, 0, 0, 0.7);
     background-color: white;
+    padding: 15px;
 }
 
 .estadisticas .contenido1 {
     display: flex;
     justify-content: space-between;
+    align-items: center;
 }
 
 .estadisticas .contenido2 {
     display: flex;
     flex-direction: column;
-    padding: 25px 0px 15px 0px;
+    padding: 15px 0px 10px 0px;
 }
 
-.estadisticas .box2 {
-    display: grid;
-    border-radius: 10px;
-    box-shadow: 0px 0px 4px rgba($color: #000000, $alpha: 0.7);
-    background-color: white;
-}
-
-.estadisticas .box3 {
-    border-radius: 10px;
-    box-shadow: 0px 0px 4px rgba($color: #000000, $alpha: 0.7);
-    background-color: white;
-}
-
+/* FILTROS */
 .filtros {
     display: flex;
-    gap: 30px;
+    flex-wrap: wrap;
+    gap: 15px;
     align-items: center;
-    height: 100px;
+    min-height: auto;
     background-color: white;
     border-radius: 15px;
+    margin-top: 20px;
 }
 
 .filtros .inputBusqueda {
-    width: 500px;
+    flex: 1 1 300px;
+    min-width: 200px;
 }
 
-.filtros .filtroTipo {
-    width: 150px;
-}
-
-.filtros .filtroTipo .selectTipo :deep(.q-field__control) {
-    border-radius: 12px;
-}
-
+.filtros .filtroTipo,
 .filtros .filtroEstado {
-    width: 150px;
+    flex: 1 1 100px;
+    min-width: 140px;
 }
 
-.filtros .filtroEstado .selectEstado :deep(.q-field__control) {
+.filtros .filtroTipo :deep(.q-field__control),
+.filtros .filtroEstado :deep(.q-field__control) {
     border-radius: 12px;
 }
 
 .filtros .btnRegistrarProveedor {
     margin-left: auto;
+    flex: 0 0 auto;
+    width: 100%;
 }
 
+@media (min-width: 768px) {
+    .filtros .btnRegistrarProveedor {
+        width: auto;
+    }
+}
+
+/* TABLA */
+.tablaProveedores {
+    margin-top: 20px;
+    background-color: white;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+:deep(.q-table) {
+    overflow-x: auto;
+}
+
+:deep(.q-table__middle) {
+    min-width: 800px; //Ancho minimo para que no se aplasten las columnas
+}
+
+// Ocultar columnas menos importantes en móvil
+@media (max-width: 768px) {
+    :deep(.q-table) {
+        th[data-th="DireccionNotificacion"],
+        td[data-th="DireccionNotificacion"],
+        th[data-th="Telefono"],
+        td[data-th="Telefono"],
+        th[data-th="CorreoElectronico"],
+        td[data-th="CorreoElectronico"],
+        th[data-th="TelefonoRepresentante"],
+        td[data-th="TelefonoRepresentante"],
+        th[data-th="CorreoElectronicoRepresentante"],
+        td[data-th="CorreoElectronicoRepresentante"],
+        th[data-th="CorreoElectronicoResponsable"],
+        td[data-th="CorreoElectronicoResponsable"] {
+            display: none;
+        }
+    }
+}
+
+// MODALES
+:deep(.q-dialog__inner) {
+    max-width: 95vw !important;
+    width: auto !important;
+}
+
+@media (max-width: 600px) {
+    :deep(.q-dialog__inner > .q-card) {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+    }
+}
+
+// ITEMS Y LISTAS
 :deep(.q-item) {
     transition: background-color 0.2s ease;
-    
-    &:hover {
-        background-color: #f5f5f5 !important;
-    }
+}
+
+:deep(.q-item:hover) {
+    background-color: #f5f5f5 !important;
 }
 
 :deep(.q-item__section--avatar) {
@@ -1123,5 +1229,37 @@ async function solicitarActualizacionProveedor(proveedor) {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 200px;
+}
+
+// BREAKPOINTS ADICIONALES
+@media (max-width: 1024px) {
+    .estadisticas {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+}
+
+// Móvil pequeño
+@media (max-width: 480px) {
+    .estadisticas {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .filtros {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filtros .inputBusqueda,
+    .filtros .filtroEstado,
+    .filtros .filtroTipo,
+    .filtros .btnRegistrarProveedor {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+
+    .rol-admin span {
+        font-size: 0.85rem;
+    }
 }
 </style>

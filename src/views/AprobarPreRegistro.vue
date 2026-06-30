@@ -31,16 +31,16 @@ function validarDocumentos() {
     if(!evaluaciones.value.length) {
         return { valido: false, mensaje: 'No hay documentos para evaluar' }
     }
-    if(!evaluaciones.value.every(val => val === 'bien' || val === 'mal')) {
+    if(!evaluaciones.value.every(val => val === 'cumple' || val === 'noCumple')) {
         return { valido: false, mensaje: 'Debe evaluar todos los documentos' }
     }
-    if(evaluaciones.value.every(val => val === 'bien')) {
+    if(evaluaciones.value.every(val => val === 'cumple')) {
         return { valido: true, aprobar: true }
     }
     return { valido: true, aprobar: false }
 };
 
-async function procesarAprobacion() {
+/* async function procesarAprobacion() {
     const resultado = validarDocumentos();
     
     if(!resultado.valido) {
@@ -53,23 +53,53 @@ async function procesarAprobacion() {
     } else {
         rechazarProveedor()
     }
-}
+} */
 
 const optionsEstado = [
-    'Pre-registro', 'Registrado', 'Actualizado', 'Pendiente Actualización', 'Inactivo'
+    'Pre-registro', 'Actualizado', 'Pendiente Actualización', 'Inactivo'
 ]
 
+async function enviarDesicion(tipo) {
+    const razonSocial = route.params.razonSocial;
+    if (!razonSocial) {
+        errorNotify('No se proporcionó Razón Social de proveedor');
+        return;
+    }
+    loading.value = true;
+    try {
+        const url = `api/proveedor/${tipo}/pre-registro/${razonSocial}`;
+        console.log('URL:', url)
+        const body = tipo === 'rechazar' ? { comentario: comentario.value } : {};
+        console.log('Cuerpo:', body)
+        const response = await apiClient.post(url, body);
+        console.log('Respuesta:', response)
+        exitoNotify(response.data.msg || `Proveedor ${tipo === 'aprobar' ? 'aprobado' : 'rechazado'}`);
+    } catch (error) {
+        errorNotify(error.response?.data?.msg || `Error al ${tipo} el proveedor`);
+    } finally {
+        loading.value = false;
+    }
+}
+
+function procesarAprobacion() {
+    const resultado = validarDocumentos();
+    if (!resultado.valido) {
+        errorNotify(resultado.mensaje);
+        return;
+    }
+    enviarDesicion(resultado.aprobar ? 'aprobar' : 'rechazar');
+}
 // Función para cargar el pre-registro
 const cargaData = () => {
-    const id = route.params.id;
-    if (id) {
-        aprobarPreRegistro.proveedorData(id);
+    const razonSocial = route.params.razonSocial;
+    if (razonSocial) {
+        aprobarPreRegistro.proveedorData(razonSocial);
     } else {
-        aprobarPreRegistro.error = "No se proporcionó un ID de proveedor válido."
+        aprobarPreRegistro.error = "No se proporcionó la Razón Social de proveedor válido.";
     }
 };
 
-// Función para aprobar el proveedor
+/* // Función para aprobar el proveedor
 async function aprobarProveedor() {
     loading.value = true;
     const tokenRaw = usuarioStore.token;
@@ -83,7 +113,7 @@ async function aprobarProveedor() {
 
     try {
         const res = await apiClient.post(
-            `api/proveedor/aprobar/pre-registro/${aprobarPreRegistro.idProveedor}`,
+            `api/proveedor/aprobar/pre-registro/${razonSocial}`,
             {},
             {
                 headers: {
@@ -132,7 +162,7 @@ async function rechazarProveedor () {
         loading.value = false;
     }
     console.log('Rechazando...', aprobarPreRegistro.idProveedor)
-};
+}; */
 
 const recargar = () => {
     cargaData();
@@ -229,7 +259,15 @@ const descargarDocumento = (url, nombre) => {
                 <p class="text-subtitle1 text-primary q-mb-sm q-mt-none text-weight-bold">Información General</p>
                 <div class="row q-col-gutter-md q-mb-md">
                     <div class="col-12 col-md-6">
+                        <q-input filled readonly v-model="aprobarPreRegistro.preRegistroAprobar.data.Pais" label="Pais"
+                            dense />
+                    </div>
+                    <div class="col-12 col-md-6">
                         <q-input filled readonly v-model="aprobarPreRegistro.preRegistroAprobar.data.NIT" label="NIT"
+                            dense />
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <q-input filled readonly v-model="aprobarPreRegistro.preRegistroAprobar.data.DV" label="DV"
                             dense />
                     </div>
                     <div class="col-12 col-md-6">
@@ -383,8 +421,8 @@ const descargarDocumento = (url, nombre) => {
                         type="radio"
                         inline
                         :options="[
-                            { label: 'Bien', value: 'bien' },
-                            { label: 'Mal', value: 'mal' }
+                            { label: 'Cumple', value: 'cumple' },
+                            { label: 'No cumple', value: 'noCumple' }
                         ]"
                     />
                 </q-item>
@@ -404,7 +442,7 @@ const descargarDocumento = (url, nombre) => {
 
             <div class="q-mb-md" style="display: flex; justify-content: space-evenly;">
                 <q-btn label="Aprobar" color="positive" @click="procesarAprobacion" class="q-mr-sm" />
-                <q-btn label="Rechazar" color="negative" @click="rechazarProveedor" />
+                <q-btn label="Rechazar" color="negative" @click="enviarDesicion('rechazar')" />
             </div>
 
         </div>

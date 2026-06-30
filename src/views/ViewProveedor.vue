@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import { useProveedorStore } from '../stores/proveedor.js';
@@ -21,6 +21,7 @@ const tokenActualizacion = ref(null);
 const documentosExistentes = ref([]);
 
 // Datos del formulario
+const pais = ref('');
 const nit = ref('');
 const dv = ref('');
 const dvOpciones = [
@@ -106,9 +107,75 @@ const dia = fechaActual.getDate();
 const mes = fechaActual.toLocaleString('es-CO', { month: 'long' });
 const año = fechaActual.getFullYear();
 
+// Función auxiliar para obtener los tipos de documentos según contribuyente
+function obtenerTiposDocumentosRequeridos(tipoContribuyente, pais) {
+    if (pais !== 'Colombia') {
+        // Documentos base comunes para ambos tipos
+        const documentosBase = [
+            'IDENTIFICACION TRIBUTARIA DEL PAIS ORIGEN (EIN, RFC, VAT ID)',
+            'CERTIFICACION BANCARIA (Con SWIFT / BIC / IBAN)',
+        ];
+
+        if (tipoContribuyente === 'Persona Jurídica') {
+            return [
+                ...documentosBase,
+                'CERTIFICADO DE EXISTENCIA Y REPRESENTACION LEGAL O EQUIVALENTE AL PAIS',
+                'COPIA DEL PASAPORTE DEL REPRESENTANTE LEGAL',
+                'ESTADOS FINANCIEROS'
+            ];
+        } else if (tipoContribuyente === 'Persona Natural') {
+            return [
+                ...documentosBase,
+                'COPIA DEL PASAPORTE O DOCUMENTO DE IDENTIDAD',
+                'DECLARACIÓN JURADA DE INGRESOS (si aplica)'
+            ];
+        }
+    }
+
+    if (pais === 'Colombia' || pais === 'COLOMBIA' || pais === 'colombia'){
+        if (tipoContribuyente === 'Persona Jurídica') {
+            return [
+                'COPIA DE RUT COMPLETO',
+                'COPIA DE CAMARA COMERCIO VIGENTE (Menor a 90 días)',
+                'COPIA DE DOCUMENTO DE IDENTIFICACION DEL REPRESENTANTE LEGAL',
+                'CERTIFICACION BANCARIA',
+                '2 CERTIFICADOS COMERCIALES',
+                'ESTADOS FINANCIEROS COMPARATIVOS DE LOS (2) ULTIMOS AÑOS'
+            ];
+        } else if (tipoContribuyente === 'Persona Natural') {
+            return [
+                'COPIA DE RUT COMPLETO',
+                'COPIA DE DOCUMENTO DE IDENTIFICACION DEL REPRESENTANTE LEGAL',
+                'CERTIFICACIÓN BANCARIA'
+            ];
+        }
+    }
+    return [];
+}
+
+const configIdentificacion = computed(() => {
+    const esColombia = pais.value === 'Colombia' || pais.value === 'colombia' || pais.value === 'COLOMBIA';
+    
+    return {
+        label: esColombia ? 'Número de Identificación Tributaria (NIT)' : 'Número de Identificación Fiscal / Tax ID',
+        placeholder: esColombia ? 'Ej: 900.123.456-7' : 'Ej: EIN, RFC, VAT ID',
+        rules: [
+            val => !!val || 'Este campo es obligatorio',
+            // Solo validamos formato colombiano si el país es Colombia
+            val => {
+                if (!esColombia) return true; 
+                // Regex simple para NIT colombiano (puedes ajustarla según tu necesidad)
+                const nitRegex = /^\d{1,10}$/; 
+                return nitRegex.test(val) || 'El NIT debe contener solo números';
+            }
+        ]
+    };
+});
+
 // Precargar datos (modo actualización)
 function precargarDatos(data) {
     // Información general
+    pais.value = data.Pais || '';
     nit.value = data.NIT || '';
     dv.value = data.DV || '';
     razonSocial.value = data.RazonSocial || '';
@@ -140,17 +207,18 @@ function precargarDatos(data) {
     }
 
     // Obtener tipos de documentos requeridos según el tipo de contribuyente
-    const tiposRequeridos = obtenerTiposDocumentosRequeridos(data.TipoContribuyente);
+    const tiposRequeridos = obtenerTiposDocumentosRequeridos(data.TipoContribuyente, data.Pais);
 
     // Obtener documentos existentes del proveedor
     const docsExistentes = data.Documentos || [];
+    console.log('Documentos existente:', docsExistentes);
 
     // Construir documentosRequeridos con la estructura esperada
     documentosRequeridos.value = tiposRequeridos.map(tipo => {
         const existente = docsExistentes.find(doc => doc.tipo === tipo);
         return {
             tipo: tipo,
-            archivo: null,
+            archivo: [],
             nombreExistente: existente ? existente.nombreOriginal : null,
             urlExistente: existente ? existente.url : null,
             reemplazar: false,
@@ -158,29 +226,8 @@ function precargarDatos(data) {
     });
 }
 
-// Función auxiliar para obtener los tipos de documentos según contribuyente
-function obtenerTiposDocumentosRequeridos(tipoContribuyente) {
-    if (tipoContribuyente === 'Persona Jurídica') {
-        return [
-            'COPIA DE RUT COMPLETO',
-            'COPIA DE CAMARA COMERCIO VIGENTE (Menor a 90 días)',
-            'COPIA DE DOCUMENTO DE IDENTIFICACION DEL REPRESENTANTE LEGAL',
-            'CERTIFICACION BANCARIA',
-            '2 CERTIFICADOS COMERCIALES',
-            'ESTADOS FINANCIEROS COMPARATIVOS DE LOS (2) ULTIMOS AÑOS'
-        ];
-    } else if (tipoContribuyente === 'Persona Natural') {
-        return [
-            'COPIA DE RUT COMPLETO',
-            'COPIA DE DOCUMENTO DE IDENTIFICACION',
-            'CERTIFICACIÓN BANCARIA'
-        ];
-    }
-    return [];
-}
-
 onMounted(async () => {
-    console.log('Token proveedor en store:', proveedorStore.tokenRegistro);
+    // console.log('Token proveedor en store:', proveedorStore.tokenRegistro);
     const tokenFormUrl = route.params.token;
     if (!tokenFormUrl) {
         errorNotify('Enlace inválido');
@@ -227,13 +274,51 @@ onMounted(async () => {
     }
 });
 
-watch(tipoContribuyente, () => {
+watch(tipoContribuyente, (nuevoValor) => {
     if (modo.value === 'preregistro') {
         obtenerDocumentosObligatorios();
+    } else if (modo.value === 'actualizacion' && nuevoValor) {
+        const tiposRequeridos = obtenerTiposDocumentosRequeridos(nuevoValor, pais.value);
+
+        const docsExistentes = documentosExistentes.value || [];
+        documentosRequeridos.value = tiposRequeridos.map(tipo => {
+            const existente = docsExistentes.find(doc => doc.tipo === tipo);
+            //Buscar también en documentosRequeridos actual (por si hay archivo subido)
+            const actual = documentosRequeridos.value.find(d => d.tipo === tipo);
+            return {
+                tipo: tipo,
+                archivo: actual?.archivo || [],
+                nombreExistente: existente ? existente.nombreOriginal : null,
+                urlExistente: existente ? existente.url : null,
+                reemplazar: actual?.reemplazar || false
+            };
+        });
+    }
+});
+
+// Watch para el cambio de pais también debe actualizar documentos
+watch(pais, (nuevoPais) => {
+    if (tipoContribuyente.value && modo.value === 'preregistro') {
+        obtenerDocumentosObligatorios();
+    } else if (tipoContribuyente.value && modo.value === 'actualizacion') {
+        const tiposRequeridos = obtenerTiposDocumentosRequeridos(tipoContribuyente.value, nuevoPais);
+        const docsExistentes = documentosExistentes.value || [];
+        documentosRequeridos.value = tiposRequeridos.map(tipo => {
+            const existente = docsExistentes.find(doc => doc.tipo === tipo);
+            const actual = documentosRequeridos.value.find(d => d.tipo === tipo);
+            return {
+                tipo: tipo,
+                archivo: actual?.archivo || [],
+                nombreExistente: existente ? existente.nombreOriginal : null,
+                urlExistente: existente ? existente.url : null,
+                reemplazar: actual?.reemplazar || false
+            };
+        });
     }
 });
 
 async function limpiarFormulario() {
+    pais.value = '';
     nit.value = '';
     razonSocial.value = '';
     dv.value = '';
@@ -275,7 +360,22 @@ const nuevosArchivos = ref([]);
 async function crearRegistro() {
     loading.value = true;
     intentoEnviar.value = true;
-    console.log('Token de registro:', proveedorStore.tokenRegistro); // Verificar el token antes de la solicitud
+
+    // Validación del tamaño de los archivos
+    const MAX_SIZE = 5 * 1024 * 1024; //5MB
+    let archivosGrandesEncontrados = false;
+
+    for (const doc of documentosRequeridos.value) {
+        if (doc.archivo && doc.archivo.length > 0) {
+            for (const file of doc.archivo) {
+                if (file.size > MAX_SIZE) {
+                    errorNotify(`El archivo "${file.name}" excede el tamaño máximo de 5MB`);
+                    loading.value = false;
+                    return;  // Detenemos la ejecución inmediatamente
+                }
+            }
+        }
+    }
 
     const token = modo.value === 'preregistro' ? route.params.token : tokenActualizacion.value;
     if (!token) {
@@ -302,8 +402,8 @@ async function crearRegistro() {
             return;
         };
 
-        //Validar que que cada documento obligatorio tenga un archivo asignado
-        const documentosFaltantes = documentosRequeridos.value.filter(d => !d.archivo);
+        //Validar que cada documento obligatorio tenga un archivo asignado
+        const documentosFaltantes = documentosRequeridos.value.filter(d => !d.archivo || d.archivo.length === 0);
         if (documentosFaltantes.length > 0) {
             errorNotify(`Faltan ${documentosFaltantes.length} documento(s) por cargar.`);
             loading.value = false;
@@ -314,9 +414,10 @@ async function crearRegistro() {
 
     // Construir objeto de datos
     const datosProveedor = {
+        Pais: pais.value,
         NIT: nit.value,
         DV: dv.value,
-        RazonSocial: razonSocial.value,
+        RazonSocial: razonSocial.value.trim(),
         DireccionNotificacion: direccionNotificacion.value,
         Telefono: telefono.value,
         Ciudad: ciudad.value,
@@ -349,8 +450,10 @@ async function crearRegistro() {
 
             // Adjuntar cada archivo
             for (const doc of documentosRequeridos.value) {
-                if (doc.archivo) {
-                    formData.append('documentos', doc.archivo);
+                if (doc.archivo && doc.archivo.length > 0) {
+                    for (const file of doc.archivo) {
+                        formData.append('documentos', file);
+                    }
                 }
             }
             // Enviar la petición con multipart/form-data
@@ -368,9 +471,29 @@ async function crearRegistro() {
             // Actualización:
             const formData = new FormData();
             formData.append('datosProveedor', JSON.stringify(datosProveedor));
+
+            // Archivos de documentos requeridos
+            const tipos = [];
+            let globalIndex = 0;
+            for (let i = 0; i < documentosRequeridos.value.length; i++) {
+                const doc = documentosRequeridos.value[i];
+                if (doc.archivo && doc.archivo.length > 0) {
+                    for (const file of doc.archivo) {
+                        formData.append('documentos', file);
+                        tipos.push({ index: globalIndex, tipo: doc.tipo });
+                        globalIndex++;
+                    }
+                }
+            }
+
+            // Archivos adicionales (no tienen tipo asociado o se asignan tipo "adicional")
             for (const file of nuevosArchivos.value) {
                 formData.append('documentos', file);
+                tipos.push({ index: globalIndex, tipo: 'Adicional' });
+                globalIndex++;
             }
+            formData.append('tiposDocumentos', JSON.stringify(tipos));
+
             response = await apiClient.put(`api/proveedor/${token}/actualizar-datos`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
@@ -468,29 +591,13 @@ const onDialogConflictosClose = () => {
 };
 
 function obtenerDocumentosObligatorios() {
-    let docs = [];
-
-    if (tipoContribuyente.value === 'Persona Jurídica') {
-        docs = [
-            'COPIA DE RUT COMPLETO',
-            'COPIA DE CÁMARA COMERCIO VIGENTE (Menor a 90 días)',
-            'COPIA DE DOCUMENTO DE IDENTIFICACION DEL REPRESENTANTE LEGAL',
-            'CERTIFICACION BANCARIA',
-            '2 CERTIFICADOS COMERCIALES',
-            'ESTADOS FINANCIEROS COMPARATIVOS DE LOS (2) ÚLTIMOS AÑOS.'
-        ];
-    } else if (tipoContribuyente.value === 'Persona Natural') {
-        docs = [
-            'COPIA DE RUT COMPLETO',
-            'COPIA DE DOCUMENTO DE IDENTIFICACION',
-            'CERTIFICACION BANCARIA',
-        ];
-    }
+    // Usar la función principal que considera el país
+    const tiposRequeridos = obtenerTiposDocumentosRequeridos(tipoContribuyente.value, pais.value);
 
     // Crear estructura con estado por documento
-    documentosRequeridos.value = docs.map(tipo => ({
+    documentosRequeridos.value = tiposRequeridos.map(tipo => ({
         tipo,
-        archivo: null,
+        archivo: [],
         url: null,
         subido: false
     }));
@@ -502,7 +609,15 @@ function obtenerDocumentosObligatorios() {
 </script>
 
 <template>
-    <div class="pantallaProveedor bg-grey-2" style="height: 100vh; padding-bottom: 2rem;">
+
+    <div v-if="cargando" class="flex flex-center" style="height: 100vh; background-color: #f5f5f5;">
+        <div class="text-center">
+            <q-spinner size="60px" color="primary"/>
+            <p class="q-mt-md text-grey-7">Cargando formulario, espere un momento...</p>
+        </div>
+    </div>
+
+    <div v-else class="pantallaProveedor bg-grey-2" style="height: 100vh; padding-bottom: 2rem;">
         <div class="titulo ">
             <h1 class="text-h3 text-weight-bold text-center text-secondary q-mb-md q-pt-md">
                 {{ modo === 'preregistro' ? 'Formulario de Proveedor' : 'Actualización de Datos' }}
@@ -522,11 +637,23 @@ function obtenerDocumentosObligatorios() {
             <q-form @submit.prevent="crearRegistro" class="">
                 <!-- INFORMACIÓN GENERAL -->
                 <p class="text-h5 text-secondary q-pb-md">Información General</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;" class="q-mb-md">
+                    <q-input
+                        style="width: 100%;"
+                        filled
+                        v-model="pais"
+                        label="País de origen *"
+                        :rules="[val => !!val || 'El país es obligatorio']"
+                    />
+                </div>
                 <div style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <q-input style="width: 42%;" filled v-model="nit"
-                        label="Número de Identificación Tributaria (NIT)" />
+                        :label="configIdentificacion.label"
+                        :placeholder="configIdentificacion.placeholder"
+                        :rules="configIdentificacion.rules"
+                        lazy-rules />
 
-                    <q-select style="width: 6%; font-size: 12px;" filled v-model="dv" :options="dvOpciones" label="DV"
+                    <q-select v-if="pais === 'Colombia' || pais === 'colombia'" style="width: 6%; font-size: 12px;" filled v-model="dv" :options="dvOpciones" label="DV"
                         emit-value map-options>
                     </q-select>
 
@@ -603,7 +730,7 @@ function obtenerDocumentosObligatorios() {
                         label="Tipo de Proveedor" emit-value map-options @update:model-value="limpiarOtroSiCambia" />
 
                     <!-- Input condicional (Solo aparece si es 'Otro') -->
-                    <div style="width: 48%;" v-if="tipoProveedor === 'Otro'">
+                    <div style="width: 100%;" v-if="tipoProveedor === 'Otro'">
                         <q-input filled v-model="otroTipoProveedor" label="Especifique el tipo de proveedor"
                             placeholder="Ej: Consultoría Ambiental"
                             :rules="[val => !!val || 'Este campo es obligatorio']" lazy-rules class="bg-blue-1" />
@@ -655,16 +782,17 @@ function obtenerDocumentosObligatorios() {
                             <p class="text-subtitle2 q-mb-xs">{{ doc.tipo }}</p>
                             {{ console.log(`Renderizando: ${doc.tipo}, archivo:`, doc.archivo) }}
 
-                            <q-file class="q-mb-lg" v-model="doc.archivo" outlined dense hide-upload-btn
-                                :label="doc.archivo ? doc.archivo.name : 'Seleccione archivo'" accept=".pdf"
-                                :color="doc.archivo ? 'primary' : 'grey-5'">
-                                <template v-if="doc.archivo" #append>
-                                    <q-btn flat round dense icon="close" color="grey" @click="doc.archivo = null" />
+                            <q-file class="q-mb-lg" v-model="doc.archivo" outlined multiple dense hide-upload-btn
+                                :label="doc.archivo && doc.archivo.length > 0 ? `${doc.archivo.length} archivo(s) seleccionado(s)` :  'Seleccione archivo PDF'"
+                                accept=".pdf"
+                                :color="doc.archivo && doc.archivo.length > 0 ? 'primary' : 'grey-5'">
+                                <template v-if="doc.archivo && doc.archivo.length > 0" #append>
+                                    <q-btn flat round dense icon="close" color="grey" @click="doc.archivo = []" />
                                 </template>
                             </q-file>
 
                             <!-- Validación visual por campo -->
-                            <span v-if="intentoEnviar && !doc.archivo" style="color: red; font-size: 12px;">
+                            <span v-if="intentoEnviar && (!doc.archivo || doc.archivo.length === 0)" style="color: red; font-size: 12px;">
                                 Este documento es obligatorio.
                             </span>
                         </div>
@@ -682,10 +810,55 @@ function obtenerDocumentosObligatorios() {
                         <div v-for="doc in documentosRequeridos" :key="doc.tipo" class="q-ml-md">
                             <p class="text-subtitle2 q-mb-xs">{{ doc.tipo }}</p>
                             <!-- Si ya existe un documento, mostrar información -->
-                             <div></div>
+                            <div v-if="doc.urlExistente && !doc.reemplazar" class="q-mb-sm">
+                                <a :href="doc.urlExistente" target="_blank">{{ doc.nombreExistente }}</a>
+                                <q-btn 
+                                    flat 
+                                    dense 
+                                    icon="refresh"
+                                    color="primary"
+                                    label="Reemplazar"
+                                    @click="doc.reemplazar = true"
+                                    class="q-ml-sm"
+                                />
+                            </div>
+                            <!-- Input para subir nuevo archivo (cuando no existe o se quiera reemplazar) -->
+                             <div v-if="!doc.urlExistente || doc.reemplazar">
+                                <q-file
+                                    v-model="doc.archivo"
+                                    multiple
+                                    outlined
+                                    dense
+                                    hide-upload-btn
+                                    :label="doc.archivo && doc.archivo.length > 0 ? `${doc.archivo.length} archivo(s) seleccionado(s)` :  'Seleccione archivo PDF'"
+                                    accept=".pdf"
+                                    class="q-mb-md"
+                                >
+                                    <template v-if="doc.archivo && doc.archivo.length > 0" #append>
+                                        <q-btn
+                                            flat
+                                            round
+                                            dense
+                                            icon="close"
+                                            color="grey"
+                                            @click="doc.archivo = []"
+                                        />
+                                    </template>
+                                </q-file>
+                                <q-btn v-if="doc.reemplazar"
+                                    flat
+                                    dense
+                                    icon="cancel"
+                                    label="Cancelar"
+                                    @click="doc.reemplazar = false; doc.archivo = []"
+                                />
+                             </div>
                         </div>
                     </div>
                 </div>
+                <p v-else-if="modo === 'actualizacion' && !tipoContribuyente" class="text-body2 text-grey-6 q-mt-md">
+                    Seleccione el tipo de contribuyente para ver los documentos requeridos.
+                </p>
 
                 <div class="q-mt-md" style="display: flex; justify-content: flex-end;">
                     <q-btn type="submit" label="Guardar" color="primary" :loading="loading" />
@@ -701,7 +874,7 @@ function obtenerDocumentosObligatorios() {
                 <div class="text-h6">Autorización de Datos Personales</div>
                 <div class="text-subtitle2">PCH SAN BARTOLOME SAS ESP</div>
             </q-card-section>
-            <q-card-section style="max-height: 70vh; overflow-y: auto;">
+            <q-card-section class="text-justify" style="max-height: 70vh; overflow-y: auto;">
                 <p>
                     Yo, <strong>{{ nombreRepresentante || '___________________' }}</strong>,
                     identificado como aparece al pie de mi firma, y actuando en representación legal de
@@ -801,7 +974,7 @@ function obtenerDocumentosObligatorios() {
                 <div class="text-h6">Declaración de Conflictos de Intereses</div>
                 <div class="text-subtitle2">PCH SAN BARTOLOMÉ SAS ESP</div>
             </q-card-section>
-            <q-card-section style="max-height: 80vh; overflow-y: auto;">
+            <q-card-section class="text-justify" style="max-height: 80vh; overflow-y: auto;">
                 <p>
                     Yo, <strong>{{ nombreRepresentante || '___________________' }}</strong>,
                     en calidad de representante de <strong>{{ razonSocial || '___________________' }}</strong>,

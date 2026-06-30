@@ -15,7 +15,7 @@ const routes = [
     {path: '/formulario-proveedor/:token', component: ViewProveedor},
     {path: '/token-invalido', component: ViewTokenExpirado},
     {path: '/registro-exitoso', component: registroExitoso},
-    {path: '/aprobacion-pre-registro/:id', component: AprobacionPreRegistro, meta: {requiresAuth: true}},
+    {path: '/aprobacion-pre-registro/:razonSocial', component: AprobacionPreRegistro, meta: {requiresAuth: true}},
 ]
 
 export const router = createRouter({

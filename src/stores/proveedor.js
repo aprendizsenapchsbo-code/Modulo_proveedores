@@ -6,7 +6,7 @@ export const useProveedorStore = defineStore('proveedor', () => {
     const razonSocialProveedor = ref(null);
 
     function setTokenRegistro(data) {
-        console.log('Guardando token:', data);
+        // console.log('Guardando token:', data);
         tokenRegistro.value = data;
     }
 
