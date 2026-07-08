@@ -3,7 +3,7 @@ import { useUsuarioStore } from "../stores/usuario.js"
 import { router } from "../routes/router.js";
 
 const apiClient = axios.create({
-    baseURL: 'https://modulo-proveedores-backend.vercel.app/'  /*||   'http://localhost:3001' */,
+    baseURL: 'https://modulo-proveedores-backend.vercel.app/'  /* ||   'http://localhost:3001' */,
     headers: {
         'Content-Type': 'application/json'
     }
@@ -41,7 +41,7 @@ apiClient.interceptors.response.use(
                 // Redirige al login guarando la ruta actual
                 router.push({
                     path: '/',
-                    query: { redirect: router.currentRoute.value.fullPath }
+                    query: { redirect: currentPath }
                 });
             }
         }

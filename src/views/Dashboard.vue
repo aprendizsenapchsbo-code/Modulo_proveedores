@@ -5,6 +5,7 @@ import { useUsuarioStore } from '../stores/usuario';
 import { useProveedorStore } from '../stores/proveedor.js';
 import axios from 'axios';
 import { exitoNotify, errorNotify } from '../composables/Notify';
+import { useProveedoresPaginados } from '../composables/useProveedorPaginado.js';
 import apiClient from '../services/axios.js';
 
 import logo from '../assets/img/Logo_login.png';
@@ -15,9 +16,25 @@ const proveedorStore = useProveedorStore()
 
 const CorreoElectronico = ref('');
 
-const totalProveedores = ref(0);
-const totalProveedoresPendientes = ref(0);
-const cumplimientoGeneral = ref(0);
+const totalProveedores = computed(() => proveedoresPaginados.value.length);
+
+// Proveedores que ya completaron el formulario pero están en revisión
+const totalPreRegistro = computed(() => 
+    proveedoresPaginados.value.filter(p => p.estadoProveedor === 'Pre-registro').length
+);
+
+// Invitaciones enviadas pero NO completadas
+const totalInvitacionesPendientes = computed(() => 
+    proveedoresPaginados.value.filter(p => p.estado === 'Invitación_enviada').length
+);
+
+const totalProveedoresPendientes = computed(() => 
+    proveedoresPaginados.value.filter(p => p.estadoProveedor === 'Pendiente Actualización').length
+);
+const cumplimientoGeneral = computed(() => {
+    if (totalProveedores.value === 0) return 0
+    return Math.round(((totalProveedores.value - totalProveedoresPendientes.value) / totalProveedores.value) * 100)
+});
 
 const formDataView = ref({});
 const formDataEdit = ref({});
@@ -25,8 +42,19 @@ const formDataEdit = ref({});
 onMounted(() => {
     console.log('Usuario en store:', usuarioStore.usuario);
     console.log('Rol:', usuarioStore.usuario?.rol);
-    obtenerProveedores();
+    cargarPagina();
 })
+
+// Inicializar el composable
+const {
+    proveedores: proveedoresPaginados,
+    loading: loadingPaginado,
+    hasMore,
+    nextSkipToken,
+    cargarPagina,
+    cargarSiguiente,
+    recargar
+} = useProveedoresPaginados(10)
 
 const emailRules = [
     val => (val && val.length > 0) || 'El campo email es obligatorio',
@@ -43,7 +71,7 @@ const optionsTipo = [
     'Ferretería y materiales de construcción', 'EPP', 'Servicios generales', 'Suministros industriales', 'Tecnología', 'Diseño de obras civiles', 'Otro'
 ]
 const optionsEstado = [
-    'Pre-registro', 'Registrado', 'Actualizado', 'Pendiente Actualización', 'Inactivo'
+    'Invitación_enviada', 'Pre-registro', 'Registrado', 'Actualizado', 'Pendiente Actualización', 'Inactivo'
 ]
 
 function logout() {
@@ -57,6 +85,8 @@ function logout() {
 const persistent = ref(false);
 const persistentView = ref(false);
 const persistentEdit = ref(false);
+
+const nuevosDocumentosEdit = ref([]);
 
 const getFormatoDeUrl = (url) => {
     if (!url) return '';
@@ -116,15 +146,54 @@ const cumpleFiltroTipo = (proveedor, tipoSeleccionado) => {
     return tipoProveedorBD === tipoSelect;
 }
 
+// Función auxiliar para determinar el color del estado
+const getBadgeColor = (estado) => {
+    const colores = {
+        'Pre-registro': 'orange',
+        'Registrado': 'green',
+        'Actualizado': 'blue',
+        'Pendiente Actualización': 'red',
+        'Inactivo': 'grey'
+    };
+    return colores[estado] || 'grey';
+}
+
 // Función para filtrar por estado
 const cumpleFiltroEstado = (proveedor, estadoSeleccionado) => {
     if (!estadoSeleccionado) return true;
 
-    const estadoProveedorBD = String(proveedor.estadoProveedor || '').trim().toLowerCase();
-    const estadoSelect = String(modelEstado.value).trim().toLowerCase();
+    const estadoNormalizado = String(estadoSeleccionado).trim().toLowerCase();
 
-    return estadoProveedorBD === estadoSelect;
-}
+    // Si seleccionas "Pre-registro", debe coincidir con estadoProveedor
+    // Si seleccionas "Invitación enviada", debe coincidir con estado
+
+    switch (estadoNormalizado) {
+        case 'invitación_enviada':
+            return proveedor.estado?.toLowerCase() === 'invitación_enviada';
+            
+        case 'pre-registro':
+            return proveedor.estadoProveedor?.toLowerCase() === 'pre-registro';
+        
+        case 'registrado':
+            return proveedor.estadoProveedor?.toLowerCase() === 'registrado';
+        
+        case 'actualizado':
+            return proveedor.estadoProveedor?.toLowerCase() === 'actualizado';
+        
+        case 'pendiente actualización':
+            return proveedor.estadoProveedor?.toLowerCase() === 'pendiente actualización';
+        
+        case 'inactivo':
+            return proveedor.estadoProveedor?.toLowerCase() === 'inactivo';
+        
+        default:
+            // Buscar en ambos campos
+            return (
+                proveedor.estado?.toLowerCase() === estadoNormalizado ||
+                proveedor.estadoProveedor?.toLowerCase() === estadoNormalizado
+            );
+    }
+};
 
 const rowsFiltradas = computed(() => {
     // Obtenemos los valores actuales de los inputs
@@ -132,7 +201,7 @@ const rowsFiltradas = computed(() => {
     const tipo = modelTipo.value;
     const estado = modelEstado.value;
 
-    return rows.value.filter(proveedor => {
+    return proveedoresPaginados.value.filter(proveedor => {
         const pasaTexto = cumpleFiltroTexto(proveedor, texto);
         const pasaTipo = cumpleFiltroTipo(proveedor, tipo);
         const pasaEstado = cumpleFiltroEstado(proveedor, estado);
@@ -214,10 +283,9 @@ function abrirModalEditar(proveedor) {
 }
 
 // funcion para enviar el correo de invitación
-const loading = ref(false)
+/* const loading = ref(false) */
 
 async function enviarInvitacion() {
-    loading.value = true
     try {
 
         const respuesta = await apiClient.post('api/proveedor/registro', {
@@ -241,14 +309,12 @@ async function enviarInvitacion() {
         proveedorStore.setTokenRegistro(token);
         console.log('Token de registro guardado:', token);
 
-        exitoNotify(`¡Solicitud enviada a ${CorreoElectronico.value}. Link válido por 7 días!`);
-        obtenerProveedores();
+        exitoNotify(`¡Solicitud enviada a ${CorreoElectronico.value}. Link válido por 15 días!`);
+        recargar();
 
     } catch (error) {
         console.error('Error al enviar la invitación:', error);
         errorNotify(error.response?.data?.msg || 'Error al enviar la invitación');
-    } finally {
-        loading.value = false
     }
 } 
 
@@ -350,13 +416,26 @@ const columns = [
         sortable: true,
         headerProps: { 'data-th': 'CorreoElectronicoResponsable' },
         props: { 'data-th': 'CorreoElectronicoResponsable' }
-      },
+    },
+    {
+        name: 'estadoEnlace',
+        label: 'Estado Enlace',
+        field: row => {
+            if (row.estado === 'Invitación_enviada') return 'Pendiente';
+            if (row.estado === 'Invitación_usada') return 'Completado';
+            return '-';
+        },
+        sortable: true,
+        align: 'center',
+        style: 'min-width: 120px'
+    },
     {
         name: 'estadoProveedor',
-        label: 'Estado',
+        label: 'Estado Proveedor',
         field: 'estadoProveedor',
         sortable: true,
         align: 'center',
+        style: 'min-width: 150px',
         headerProps: { 'data-th': 'estadoProveedor' },
         props: { 'data-th': 'estadoProveedor' }
     },
@@ -365,17 +444,19 @@ const columns = [
         label: 'Opciones',
         field: 'Opciones',
         align: 'center',
-        style: 'min-width: 180px',
+        style: 'min-width: 200px; position: sticky; right: 0; z-index: 2; background-color: white;',
+        classes: 'bg-white',
+        headerStyle: 'position: sticky; right: 0; z-index: 3; background-color: white;',
         headerProps: { 'data-th': 'Opciones' },
         props: { 'data-th': 'Opciones' }
     }
 ]
 
 // FILAS
-const rows = ref([]);
+// const rows = ref([]);
 
 // Función para traer los proveedores desde la base de datos
-async function obtenerProveedores() {
+/* async function obtenerProveedores() {
     loading.value = true;
     try {
         const response = await apiClient.get('api/proveedor');
@@ -400,7 +481,7 @@ async function obtenerProveedores() {
     } finally {
         loading.value = false;
     }
-}
+} */
 
 
 // Función para eliminar un proveedor
@@ -408,24 +489,20 @@ async function eliminarProveedor(proveedor) {
     // Aquí puedes agregar una confirmación con q-dialog
     if (!confirm('¿Estás seguro de que quieres eliminar este proveedor?')) return;
 
-    loading.value = true;
     try {
         console.log('Eliminando proveedor:', proveedor.RazonSocial);
         await apiClient.delete(`api/proveedor/${proveedor.RazonSocial}`);
         exitoNotify('Proveedor eliminado exitosamente');
-        obtenerProveedores(); // Recargar la lista
+        recargar(); // Recargar la lista
     } catch (error) {
         console.error('Error al eliminar proveedor:', error);
         errorNotify(error.response?.data?.msg || 'Error al eliminar proveedor');
-    } finally {
-        loading.value = false;
     }
 }
 
 // función para editar un proveedor
 async function editarProveedor() {
     // const proveedor = proveedorEditando.value;
-    loading.value = true;
     try {
         console.log('Razón Social proveedor:', formDataEdit.value.RazonSocial);
         if (!formDataEdit.value.RazonSocial) {
@@ -433,37 +510,64 @@ async function editarProveedor() {
         return;
     }
 
-        const { RazonSocial, ...datosParaActualizar } = formDataEdit.value;
+        const { RazonSocial, Documentos, ...datosParaActualizar } = formDataEdit.value;
 
-        
-        const r = await apiClient.put(`api/proveedor/${RazonSocial}`, datosParaActualizar);
+        /* Si hay archivos, usar FormData; si no, enviar JSON */
+        if (nuevosDocumentosEdit.value && nuevosDocumentosEdit.value.length > 0) {
+            const formData = new FormData();
+            // Agregar los datos JSON como string
+            formData.append('datosProveedor', JSON.stringify(datosParaActualizar));
+            // Agregar cada archivo al campo 'documentos'
+            nuevosDocumentosEdit.value.forEach((file) => {
+                formData.append('documentos', file);
+            });
+
+            // Enviar información sobre los tipos de documentos si es necesario
+            const tipos = nuevosDocumentosEdit.value.map((f, index) => ({
+                index: index,
+                tipo: 'Documento Adicional (Dashboard)'
+            }));
+            formData.append('tiposDocumentos', JSON.stringify(tipos));
+
+            await apiClient.put(`api/proveedor/${RazonSocial}`, formData, 
+            {
+                headers: {
+                    'x-token': usuarioStore.token,
+                    'Content-Type': 'multipart/form-data'
+                }
+            } );
+            // console.log('Proveedor actualizado con archivos', response.data);
+        } else {
+            await apiClient.put(`api/proveedor/${RazonSocial}`, 
+                datosParaActualizar,
+                {
+                    headers: { 'x-token': usuarioStore.token }
+                }
+            );
+            // console.log('Proveedor actualizado (solo datos)', response.data)
+        }
             
-        console.log('Proveedor actualizado', r.data);
         exitoNotify('Proveedor actualizado exitosamente');
         persistentEdit.value = false;
-        obtenerProveedores(); // Recargar la lista
+        nuevosDocumentosEdit.value = [];
+        await recargar(); // Recargar la lista
     } catch (error) {
         console.error('Error al actualizar proveedor:', error);
         errorNotify(error.response?.data?.msg || 'Error al actualizar proveedor');
-    } finally {
-        loading.value = false;
     }
 }
 
 // función para solicitar actualización al proveedor
 async function solicitarActualizacionProveedor(proveedor) {
-    loading.value = true;
     try {
         console.log('Solicitando actualización para proveedor:', proveedor.RazonSocial);
         await apiClient.put(`api/proveedor/${proveedor.RazonSocial}/solicitar-actualizacion`);
         exitoNotify('Solicitud de actualización enviada al proveedor');
 
-        obtenerProveedores(); // Recargar la lista para reflejar cambios
+        recargar(); // Recargar la lista para reflejar cambios
     } catch (error) {
         console.error('Error al solicitar actualización:', error);
         errorNotify(error.response?.data?.msg || 'Error al solicitar actualización');
-    } finally {
-        loading.value = false;
     }
 }
 </script>
@@ -498,7 +602,7 @@ async function solicitarActualizacionProveedor(proveedor) {
 
                     <div class="contenido2">
                         <span class="numeroTotalProveedores text-h5 text-bold">{{ totalProveedores.toLocaleString('es-CO') }}</span>
-                        <span class="porcentajeMensual text-primary">12% este mes</span>
+                        <!-- <span class="porcentajeMensual text-primary">12% este mes</span> -->
                     </div>
                 </div>
                 <div class="box2 text-body2 q-pl-md q-pt-md">
@@ -575,8 +679,8 @@ async function solicitarActualizacionProveedor(proveedor) {
                         :columns="columns" 
                         virtual-scroll
                         :virtual-scroll-sticky-size-start="48"
-                        row-key="_id" 
-                        :loading="loading"
+                        row-key="NIT" 
+                        :loading="loadingPaginado"
                         rows-per-page-label="Registros por página"
                         no-data-label="No hay datos disponibles"
                         loading-label="Cargando..."
@@ -628,10 +732,56 @@ async function solicitarActualizacionProveedor(proveedor) {
                                 </div>
                             </q-td>
                         </template>
+
+                        // Diferenciar los estados por medio de colores
+                        <template v-slot:body-cell-estadoEnlace="props">
+                            <q-td :props="props">
+                                <q-badge
+                                    v-if="props.row.estado === 'Invitación_enviada'"
+                                    color="warning"
+                                    text-color="black"
+                                >
+                                    Pendiente
+                                </q-badge>
+                                <q-badge
+                                    v-else-if="props.row.estado === 'Invitación_usada'"
+                                    color="positive"
+                                >
+                                    ✅ Completado
+                                </q-badge>
+                                <span v-else class="text-grey-6">-</span>
+                            </q-td>
+                        </template>
+
+                        <template v-slot:body-cell-estadoProveedor="props">
+                            <q-td :props="props">
+                                <q-badge
+                                    :color="getBadgeColor(props.row.estadoProveedor)"
+                                    text-color="white"
+                                >
+                                    {{ props.row.estadoProveedor }}
+                                </q-badge>
+                            </q-td>
+                        </template>
+
                     </q-table>
+                    <!-- Botón de Cargar más proveedores -->
+                    <div v-if="hasMore" class="q-pa-md text-center">
+                        <q-btn
+                            color="primary"
+                            label="Cargar más proveedores"
+                            :loading="loadingPaginado"
+                            @click="cargarSiguiente"
+                            no-caps
+                        />
+                    </div>
+                    <div v-else-if="!loadingPaginado && proveedoresPaginados.length > 0" class="q-pa-md text-center text-grey-6">
+                        No hay más proveedores para mostrar (total: {{ proveedoresPaginados.length }})
+                    </div>
                 </div>
             </section>
 
+            <!-- MODAL REGISTRO -->
             <section class="dialogoRegistro">
                 <q-dialog @submit.prevent="enviarInvitacion" v-model="persistent" persistent transition-show="scale"
                     transition-hide="scale" class="">
@@ -656,7 +806,7 @@ async function solicitarActualizacionProveedor(proveedor) {
                                     <q-btn class="bg-white text-black" flat label="Cancelar" v-close-popup />
                                 </q-card-actions>
                                 <q-card-actions align="right">
-                                    <q-btn type="submit" :loading="loading" class="bg-primary text-white" flat
+                                    <q-btn type="submit" :loading="loadingPaginado" class="bg-primary text-white" flat
                                         label="Confirmar envio" />
                                 </q-card-actions>
                             </q-card-section>
@@ -838,7 +988,7 @@ async function solicitarActualizacionProveedor(proveedor) {
 
             <!-- SECCIÓN: MODAL DE ACTUALIZACION -->
             <section class="dialogoActualizar">
-                <q-dialog v-model="persistentEdit" persistent transition-show="scale" transition-hide="scale">
+                <q-dialog v-model="persistentEdit" @hide="nuevosDocumentosEdit = []" persistent transition-show="scale" transition-hide="scale">
                     <q-card class="text-white" style="width: 600px;">
                         <q-card-section class="bg-primary q-mb-md"
                             style="display: flex; justify-content: space-between; align-items: center;">
@@ -1008,8 +1158,34 @@ async function solicitarActualizacionProveedor(proveedor) {
 
                                     <!-- Nota informativa -->
                                     <p class="text-caption text-grey-6 q-mt-xs">
-                                    💡 Para modificar documentos, contacta al proveedor para que actualice su registro.
+                                    💡 Para modificar documentos, contacta al proveedor.
+                                    Puedes adjuntar documentos adicionales aquí.
                                     </p>
+                                </div>
+
+                                <!-- Subir nuevos documentos -->
+                                 <div class="q-mb-md">
+                                    <p class="text-subtitle2 text-secondary q-mb-sm">Subir nuevos documentos</p>
+                                    <q-file
+                                        v-model="nuevosDocumentosEdit"
+                                        multiple
+                                        outlined
+                                        label="Seleccionar archivos PDF"
+                                        accept=".pdf"
+                                        counter
+                                    >
+                                        <template v-slot:prepend>
+                                            <q-icon name="attach_file" />
+                                        </template>
+                                    </q-file>
+                                    <div v-if="nuevosDocumentosEdit.length > 0" class="q-mt-sm">
+                                        <p class="text-caption text-grey-7">Archivos listos para subir:</p>
+                                        <ul class="q-pl-md">
+                                            <li v-for="(file, idx) in nuevosDocumentosEdit" :key="idx" class="text-caption">
+                                                {{ file.name }} ({{ (file.size / 1024).toFixed(0) }} KB)
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </div>
 
                                 <div class="q-mb-md">
@@ -1023,7 +1199,7 @@ async function solicitarActualizacionProveedor(proveedor) {
                                     <q-btn class="bg-white text-black" flat label="Cancelar" v-close-popup />
                                 </q-card-actions>
                                 <q-card-actions align="right">
-                                    <q-btn type="submit" :loading="loading" class="bg-primary text-white" flat
+                                    <q-btn type="submit" :loading="loadingPaginado" class="bg-primary text-white" flat
                                         label="Guardar Cambios" />
                                 </q-card-actions>
                             </q-card-section>

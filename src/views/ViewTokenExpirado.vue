@@ -16,7 +16,7 @@ const titulo = computed(() =>
 
 const mensaje = computed(() => 
     tipo === 'expirado'
-        ? 'El enlace que intentas usar ha expirado. Los enlaces de registro son válidos por 7 días.'
+        ? 'El enlace que intentas usar ha expirado. Los enlaces de registro son válidos por 15 días.'
         : 'El enlace que intentas usar no es válido o ya ha sido utilizado.'
 );
 

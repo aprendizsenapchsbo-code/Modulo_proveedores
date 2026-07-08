@@ -61,7 +61,8 @@ async function login() {
 
         exitoNotify(`¡Bienvenido, ${r.data.usuario.nombre}!`);
 
-        router.push('/dashboard')
+        const redirectPath = route.query.redirect || '/dashboard'
+        router.push(redirectPath)
         
     } catch (error) {
         console.error("Error al iniciar sesión", error.response?.data || error);

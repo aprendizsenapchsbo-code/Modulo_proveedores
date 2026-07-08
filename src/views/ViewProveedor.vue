@@ -107,9 +107,63 @@ const dia = fechaActual.getDate();
 const mes = fechaActual.toLocaleString('es-CO', { month: 'long' });
 const año = fechaActual.getFullYear();
 
+// Cargar directa a SharePoint
+const MAX_FILE_SIZE = 10 * 1024 * 1024; //10MB
+
+async function solicitarUrlsCarga(token, archivosInfo, razonSocial) {
+    // archivosInfo: [{ nombreOriginal, tipo }]
+    const response = await apiClient.post(`api/proveedor/solicitar-urls-carga/${token}`, {
+        archivos: archivosInfo,
+        razonSocial: razonSocial
+    });
+    return response.data;  // { success, urls: [{ nombre, nombreOriginal, tipo, uploadUrl }] }
+}
+
+async function subirArchivoUrl(uploadUrl, file) {
+    const fileSize = file.size;
+    const range = `bytes 0-${fileSize-1}/${fileSize}`;
+    // Usamos fetch porque axios podría tener problemas con streams en navegador
+    const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 
+            'Content-Type': 'application/octet-stream',
+            'Content-Range': range
+         },
+        body: file
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error al subir archivo: ${response.status} ${errorText}`);
+    }
+    return true;
+}
+
+// Subir varios archivos en secuencia
+async function subirArchivos(urls, archivosPorIndice) {
+    const resultados = [];
+    for (let i = 0; i < urls.length; i++) {
+        const { uploadUrl, nombre, tipo, nombreOriginal } = urls[i];
+        const file = archivosPorIndice[i];
+        console.log(`Subiendo archivo ${i}: ${nombreOriginal} (${file.size} bytes) a ${uploadUrl}`);
+        try {
+            await subirArchivoUrl(uploadUrl, file);
+            console.log(`Subida exitosa: ${nombreOriginal}`);
+            resultados.push({ nombre, tipo, nombreOriginal });
+        } catch (err) {
+            throw new Error(`Fallo al subir "${nombreOriginal}": ${err.message}`);
+            throw err;
+        }
+    }
+    return resultados;
+}
+
 // Función auxiliar para obtener los tipos de documentos según contribuyente
 function obtenerTiposDocumentosRequeridos(tipoContribuyente, pais) {
-    if (pais !== 'Colombia') {
+    // Normalizar: convertir a minusculas y eliminar espacios
+    const paisNormalizado = pais?.trim().toLowerCase() || '';
+    const esColombia = paisNormalizado === 'colombia';
+
+    if (!esColombia) {
         // Documentos base comunes para ambos tipos
         const documentosBase = [
             'IDENTIFICACION TRIBUTARIA DEL PAIS ORIGEN (EIN, RFC, VAT ID)',
@@ -132,7 +186,7 @@ function obtenerTiposDocumentosRequeridos(tipoContribuyente, pais) {
         }
     }
 
-    if (pais === 'Colombia' || pais === 'COLOMBIA' || pais === 'colombia'){
+    if (esColombia){
         if (tipoContribuyente === 'Persona Jurídica') {
             return [
                 'COPIA DE RUT COMPLETO',
@@ -154,7 +208,7 @@ function obtenerTiposDocumentosRequeridos(tipoContribuyente, pais) {
 }
 
 const configIdentificacion = computed(() => {
-    const esColombia = pais.value === 'Colombia' || pais.value === 'colombia' || pais.value === 'COLOMBIA';
+    const esColombia = pais.value?.trim().toLowerCase() === 'colombia';
     
     return {
         label: esColombia ? 'Número de Identificación Tributaria (NIT)' : 'Número de Identificación Fiscal / Tax ID',
@@ -355,13 +409,26 @@ const limpiarOtroSiCambia = (nuevoValor) => {
     }
 };
 
+// Función auxiliar para formatear los bytes a megabytes
+const formatearTamanoArchivo = (archivos) => {
+    if (!archivos || archivos.length === 0) return '';
+
+    // Sumar el tamaño de todos los archivos seleccionados
+    const totalBytes = archivos.reduce((acc, file) => acc + (file.size || 0), 0);
+    const mb = (totalBytes / (1024 * 1024)).toFixed(2);
+
+    return archivos.length === 1
+        ? `${mb} MB`
+        : `${archivos.length} archivos (${mb} MB)`;
+}
+
 const nuevosArchivos = ref([]);
 // Envío del formulario
 async function crearRegistro() {
     loading.value = true;
     intentoEnviar.value = true;
 
-    // Validación del tamaño de los archivos
+    /* // Validación del tamaño de los archivos
     const MAX_SIZE = 5 * 1024 * 1024; //5MB
     let archivosGrandesEncontrados = false;
 
@@ -375,7 +442,7 @@ async function crearRegistro() {
                 }
             }
         }
-    }
+    } */
 
     const token = modo.value === 'preregistro' ? route.params.token : tokenActualizacion.value;
     if (!token) {
@@ -400,104 +467,154 @@ async function crearRegistro() {
             else if (!autorizaConflictos.value) dialogConflictos.value = true;
             loading.value = false;
             return;
-        };
+        }
+    };
 
-        //Validar que cada documento obligatorio tenga un archivo asignado
+        /* //Validar que cada documento obligatorio tenga un archivo asignado
         const documentosFaltantes = documentosRequeridos.value.filter(d => !d.archivo || d.archivo.length === 0);
         if (documentosFaltantes.length > 0) {
             errorNotify(`Faltan ${documentosFaltantes.length} documento(s) por cargar.`);
             loading.value = false;
             return;
+        } */
+        /* Recolección de Archivos y Tipos */
+        // Construir dos arrays paralelos: archivos (File) y metadatos (tipo, nombreOriginal)
+        const archivosParaSubir = [];  // File objects
+        const archivosInfo = [];  // { nombreOriginal, tipo }
+
+        // a) Documentos requeridos
+        for (const doc of documentosRequeridos.value) {
+            if (doc.archivo && doc.archivo.length > 0) {
+                for (const file of doc.archivo) {
+                    // Validar tamaño individual 
+                    if (file.size > MAX_FILE_SIZE) {
+                        errorNotify(`El archivo "${file.name}" supera el tamaño máximo de 5 MB`);
+                        loading.value = false;
+                        return;
+                    }
+                    archivosParaSubir.push(file);
+                    archivosInfo.push({ nombreOriginal: file.name, tipo: doc.tipo });
+                }
+            }
         }
-    }
 
+        /* // b) Archivos adicionales (solo en actualización)
+        if (modo.value === 'actualizacion' && nuevosArchivos.value.length > 0) {
+            errorNotify('Debe cargar al menos un documento.');
+            loading.value = false;
+            return;
+        } */
 
-    // Construir objeto de datos
-    const datosProveedor = {
-        Pais: pais.value,
-        NIT: nit.value,
-        DV: dv.value,
-        RazonSocial: razonSocial.value.trim(),
-        DireccionNotificacion: direccionNotificacion.value,
-        Telefono: telefono.value,
-        Ciudad: ciudad.value,
-        NombreRepresentante: nombreRepresentante.value,
-        TipoDocumentoRepresentante: tipoDocumentoRepresentante.value,
-        NumeroIdentificacion: numeroIdentificacion.value,
-        TelefonoRepresentante: telefonoRepresentante.value,
-        CorreoElectronicoRepresentante: correoElectronicoRepresentante.value,
-        NombreRepresentanteComercial: nombreRepresentanteComercial.value,
-        CargoRepresentanteComercial: cargoRepresentanteComercial.value,
-        TelefonoRepresentanteComercial: telefonoRepresentanteComercial.value,
-        CorreoElectronicoRepresentanteComercial: correoElectronicoRepresentanteComercial.value,
-        NombresApellidosResponsable: nombresApellidosResponsable.value,
-        CargoResponsableFacturacion: cargoResponsableFacturacion.value,
-        CorreoElectronicoResponsable: correoElectronicoResponsable.value,
-        TipoContribuyente: tipoContribuyente.value,
-        TipoProveedor: tipoProveedor.value,
-        OtroTipoProveedor: otroTipoProveedor.value,
-        AutorizaDatosPersonales: modo.value === 'preregistro' ? autorizaDatosPersonales.value : true,
-        AutorizaConflictos: modo.value === 'preregistro' ? autorizaConflictos.value : true,
-    };
+        // PASO 1: Obtener URLs de carga
+        let urlsCarga = [];
+        try {
+            const resp = await solicitarUrlsCarga(token, archivosInfo, razonSocial.value.trim());
+            urlsCarga = resp.urls;  // [{ nombre, nombreOriginal, tipo, uploadUrl }]
+        } catch (error) {
+            console.error('Error al solicitar URLs de carga:', error);
+            errorNotify(error.response?.data?.msg || 'Error al preparar la carga de documentos');
+            loading.value = false;
+            return;
+        }
 
-    try {
-        let response;
-        if (modo.value === 'preregistro') {
-            // Enviar con FormData (incluye documentos)
-            const formData = new FormData();
-            // Agregar los datos del proveedor como un string JSON
-            formData.append('datosProveedor', JSON.stringify(datosProveedor));
+        // PASO 2: Subir archivos directamente a SharePoint
+        let archivosSubidos = [];
+        try {
+            archivosSubidos = await subirArchivos(urlsCarga, archivosParaSubir);
+        } catch (error) {
+            console.error('Error al subir archivos:', error);
+            errorNotify(error.message || 'Error al subir los documentos');
+            loading.value = false;
+            return;
+        }
 
-            // Adjuntar cada archivo
-            for (const doc of documentosRequeridos.value) {
-                if (doc.archivo && doc.archivo.length > 0) {
-                    for (const file of doc.archivo) {
-                        formData.append('documentos', file);
+        // PASO 3: Enviar metadatos y referencia al backend
+        const datosProveedor = {
+            Pais: pais.value.trim(),
+            NIT: nit.value.trim(),
+            DV: dv.value,
+            RazonSocial: razonSocial.value.trim(),
+            DireccionNotificacion: direccionNotificacion.value.trim(),
+            Telefono: telefono.value.trim(),
+            Ciudad: ciudad.value.trim(),
+            NombreRepresentante: nombreRepresentante.value.trim(),
+            TipoDocumentoRepresentante: tipoDocumentoRepresentante.value.trim(),
+            NumeroIdentificacion: numeroIdentificacion.value.trim(),
+            TelefonoRepresentante: telefonoRepresentante.value.trim(),
+            CorreoElectronicoRepresentante: correoElectronicoRepresentante.value.trim(),
+            NombreRepresentanteComercial: nombreRepresentanteComercial.value.trim(),
+            CargoRepresentanteComercial: cargoRepresentanteComercial.value.trim(),
+            TelefonoRepresentanteComercial: telefonoRepresentanteComercial.value.trim(),
+            CorreoElectronicoRepresentanteComercial: correoElectronicoRepresentanteComercial.value.trim(),
+            NombresApellidosResponsable: nombresApellidosResponsable.value.trim(),
+            CargoResponsableFacturacion: cargoResponsableFacturacion.value.trim(),
+            CorreoElectronicoResponsable: correoElectronicoResponsable.value.trim(),
+            TipoContribuyente: tipoContribuyente.value,
+            TipoProveedor: tipoProveedor.value,
+            OtroTipoProveedor: otroTipoProveedor.value.trim(),
+            AutorizaDatosPersonales: modo.value === 'preregistro' ? autorizaDatosPersonales.value : true,
+            AutorizaConflictos: modo.value === 'preregistro' ? autorizaConflictos.value : true,
+        };
+
+        const bodyFinal = {
+            ...datosProveedor,
+            archivosSubidos  // contiene [{ nombre, tipo, nombreOriginal }]
+        };
+
+        try {
+            let response;
+            if (modo.value === 'preregistro') {
+                /* // Enviar con FormData (incluye documentos)
+                const formData = new FormData();
+                // Agregar los datos del proveedor como un string JSON
+                formData.append('datosProveedor', JSON.stringify(datosProveedor));
+    
+                // Adjuntar cada archivo
+                for (const doc of documentosRequeridos.value) {
+                    if (doc.archivo && doc.archivo.length > 0) {
+                        for (const file of doc.archivo) {
+                            formData.append('documentos', file);
+                        }
+                    }
+                } */
+                // Enviar la petición con multipart/form-data
+                response = await apiClient.post(
+                    `api/proveedor/registro/completar-registro-carga-directa/${token}`, bodyFinal);
+                if (response.data.success) {
+                    aprobacionPreRegistroStore.setRazonSocialProveedor(response.data.RazonSocial);
+                    aprobacionPreRegistroStore.setPreRegistroAprobar(response.data);
+                    exitoNotify('Registro creado exitosamente')
+                    router.push('/registro-exitoso')
+                }
+            } else {
+                // Actualización:
+                /* const formData = new FormData();
+                formData.append('datosProveedor', JSON.stringify(datosProveedor));
+    
+                // Archivos de documentos requeridos
+                const tipos = [];
+                let globalIndex = 0;
+                for (let i = 0; i < documentosRequeridos.value.length; i++) {
+                    const doc = documentosRequeridos.value[i];
+                    if (doc.archivo && doc.archivo.length > 0) {
+                        for (const file of doc.archivo) {
+                            formData.append('documentos', file);
+                            tipos.push({ index: globalIndex, tipo: doc.tipo });
+                            globalIndex++;
+                        }
                     }
                 }
-            }
-            // Enviar la petición con multipart/form-data
-            response = await apiClient.post(
-                `api/proveedor/registro/completar/${token}`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            if (response.data.success) {
-                aprobacionPreRegistroStore.setRazonSocialProveedor(response.data.RazonSocial);
-                aprobacionPreRegistroStore.setPreRegistroAprobar(response.data);
-                exitoNotify('Registro creado exitosamente')
-                router.push('/registro-exitoso')
-            }
-        } else {
-            // Actualización:
-            const formData = new FormData();
-            formData.append('datosProveedor', JSON.stringify(datosProveedor));
-
-            // Archivos de documentos requeridos
-            const tipos = [];
-            let globalIndex = 0;
-            for (let i = 0; i < documentosRequeridos.value.length; i++) {
-                const doc = documentosRequeridos.value[i];
-                if (doc.archivo && doc.archivo.length > 0) {
-                    for (const file of doc.archivo) {
-                        formData.append('documentos', file);
-                        tipos.push({ index: globalIndex, tipo: doc.tipo });
-                        globalIndex++;
-                    }
+    
+                // Archivos adicionales (no tienen tipo asociado o se asignan tipo "adicional")
+                for (const file of nuevosArchivos.value) {
+                    formData.append('documentos', file);
+                    tipos.push({ index: globalIndex, tipo: 'Adicional' });
+                    globalIndex++;
                 }
-            }
-
-            // Archivos adicionales (no tienen tipo asociado o se asignan tipo "adicional")
-            for (const file of nuevosArchivos.value) {
-                formData.append('documentos', file);
-                tipos.push({ index: globalIndex, tipo: 'Adicional' });
-                globalIndex++;
-            }
-            formData.append('tiposDocumentos', JSON.stringify(tipos));
-
-            response = await apiClient.put(`api/proveedor/${token}/actualizar-datos`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
+                formData.append('tiposDocumentos', JSON.stringify(tipos)); */
+    
+                response = await apiClient.put(`api/proveedor/${token}/actualizar-datos-carga-directa`, bodyFinal);
+    
             if (response.data.success) {
                 exitoNotify('Datos actualizados exitosamente');
                 router.push('/registro-exitoso');
@@ -653,7 +770,7 @@ function obtenerDocumentosObligatorios() {
                         :rules="configIdentificacion.rules"
                         lazy-rules />
 
-                    <q-select v-if="pais === 'Colombia' || pais === 'colombia'" style="width: 6%; font-size: 12px;" filled v-model="dv" :options="dvOpciones" label="DV"
+                    <q-select v-if="pais === 'Colombia' || pais === 'colombia' || pais === 'COLOMBIA'" style="width: 6%; font-size: 12px;" filled v-model="dv" :options="dvOpciones" label="DV"
                         emit-value map-options>
                     </q-select>
 
@@ -783,7 +900,8 @@ function obtenerDocumentosObligatorios() {
                             {{ console.log(`Renderizando: ${doc.tipo}, archivo:`, doc.archivo) }}
 
                             <q-file class="q-mb-lg" v-model="doc.archivo" outlined multiple dense hide-upload-btn
-                                :label="doc.archivo && doc.archivo.length > 0 ? `${doc.archivo.length} archivo(s) seleccionado(s)` :  'Seleccione archivo PDF'"
+                                :label="doc.archivo && doc.archivo.length > 0 ? formatearTamanoArchivo(doc.archivo)
+                                : 'Seleccione archivo PDF'"
                                 accept=".pdf"
                                 :color="doc.archivo && doc.archivo.length > 0 ? 'primary' : 'grey-5'">
                                 <template v-if="doc.archivo && doc.archivo.length > 0" #append>
@@ -830,7 +948,7 @@ function obtenerDocumentosObligatorios() {
                                     outlined
                                     dense
                                     hide-upload-btn
-                                    :label="doc.archivo && doc.archivo.length > 0 ? `${doc.archivo.length} archivo(s) seleccionado(s)` :  'Seleccione archivo PDF'"
+                                    :label="doc.archivo && doc.archivo.length > 0 ? formatearTamanoArchivo(doc.archivo) :  'Seleccione archivo PDF'"
                                     accept=".pdf"
                                     class="q-mb-md"
                                 >
