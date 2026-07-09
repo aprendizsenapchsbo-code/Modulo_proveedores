@@ -1,3 +1,4 @@
+import { ref } from "vue";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { setActivePinia } from "pinia";
@@ -19,7 +20,7 @@ const {
     mockDelete: vi.fn(),
     mockExitoNotify: vi.fn(),
     mockErrorNotify: vi.fn(),
-    mockPush: vi.fn()
+    mockPush: vi.fn(),
 }));
 
 // Mock de localstorage (global)
@@ -28,13 +29,13 @@ const localStorageMock = vi.hoisted(() => ({
     setItem: vi.fn(),
     removeItem: vi.fn(),
     clear: vi.fn(),
-}))
+}));
 global.localStorage = localStorageMock;
 
 // Mock del composable useProveedorPaginados
-const mockProveedorPaginados = vi.hoisted(() => ({
+const mockProveedoresPaginados = vi.hoisted(() => ({
     proveedores: ref([]),
-    Loading: ref(false),
+    loading: ref(false),
     hasMore: ref(true),
     nextSkipToken: ref(null),
     cargarPagina: vi.fn(),
@@ -99,7 +100,7 @@ vi.mock('quasar', () => ({
                     </tbody>
                 </table>
                 <div v-if="loading">Cargando...</div>
-                <div v-if="!row.length && !loading">No hay datos disponibles</div>
+                <div v-if="!rows.length && !loading">No hay datos disponibles</div>
             </div>
         `,
         props: ['rows', 'columns', 'loading', 'title', 'virtualScroll', 'rowKey'],
@@ -160,7 +161,7 @@ vi.mock('quasar', () => ({
     },
     QItemLabel: {
         name: 'QItemLabel',
-        template: '<span><slog /></span>',
+        template: '<span><slot /></span>',
     },
     QFile: {
         name: 'QFile',
@@ -197,7 +198,7 @@ vi.mock('../src/composables/Notify.js', () => ({
 }));
 
 vi.mock('../src/composables/useProveedorPaginado.js', () => ({
-    useProveedorPaginados: vi.fn(() => mockProveedorPaginados),
+    useProveedoresPaginados: vi.fn(() => mockProveedoresPaginados),
 }));
 
 // Mock del store de proveedor (aunque no se usa directamente en el componente, se importa)
@@ -245,15 +246,15 @@ describe('Dashboard.vue', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockRoute.query = {};
-        localStorage.clear();
+        localStorageMock.clear();
         // Resetear el mock del composable a valores por defecto
-        mockProveedorPaginados.proveedores.value = [];
-        mockProveedorPaginados.Loading.value = false;
-        mockProveedorPaginados.hasMore.value = true;
-        mockProveedorPaginados.nextSkipToken.value = null;
-        mockProveedorPaginados.cargarPagina.mockClear();
-        mockProveedorPaginados.cargarSiguiente.mockClear();
-        mockProveedorPaginados.recargar.mockClear();
+        mockProveedoresPaginados.proveedores.value = [];
+        mockProveedoresPaginados.loading.value = false;
+        mockProveedoresPaginados.hasMore.value = true;
+        mockProveedoresPaginados.nextSkipToken.value = null;
+        mockProveedoresPaginados.cargarPagina.mockClear();
+        mockProveedoresPaginados.cargarSiguiente.mockClear();
+        mockProveedoresPaginados.recargar.mockClear();
 
         // Mock de window.config para las pruebas de eliminación
         global.confirm = vi.fn(() => true);
