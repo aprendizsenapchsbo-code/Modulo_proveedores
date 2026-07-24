@@ -239,7 +239,7 @@ const descargarDocumento = (url, nombre) => {
 
 <template>
     <div class="pantalla">
-        <h1 class="text-h4 text-center text-accent">Validación del proveedor</h1>
+        <h1 class="text-h4 text-center text-secondary">Validación del proveedor</h1>
 
         <div v-if="aprobarPreRegistro.loading" class="text-center">
             <span><q-spinner-tail color="blue-grey" /></span>

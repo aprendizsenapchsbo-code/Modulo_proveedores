@@ -62,7 +62,7 @@ async function login() {
         exitoNotify(`¡Bienvenido, ${r.data.usuario.nombre}!`);
 
         const redirectPath = route.query.redirect || '/dashboard'
-        router.push(redirectPath)
+        await router.push(redirectPath)
         
     } catch (error) {
         console.error("Error al iniciar sesión", error.response?.data || error);
@@ -81,7 +81,7 @@ async function login() {
             <h1 class="titulo">Sistema Gestión de Proveedores</h1>
 
             <div class="logoLogin">
-                <img class="logo q-mb-xl" :src="logo" alt="Logo">
+                <img class="logo q-mb-xl shadow-10" :src="logo" alt="Logo">
             </div>
 
             <q-form @submit.prevent="login">
@@ -114,7 +114,7 @@ async function login() {
 
 <style lang="scss" scoped>
 .login-wrapper {
-    background: linear-gradient(#0a2833 0%, #3454d1 50%, #6BBB6B 100%);
+    background: linear-gradient(#142808 0%, #3454d1 50%, #6FC33D 100%);
     min-height: 100vh;
     display: flex;
     justify-content: center;
@@ -135,7 +135,7 @@ async function login() {
 .titulo {
     text-align: center;
     font-size: 23px;
-    color: #6BBB6B;
+    color: #6FC33D;
 }
 
 .logoLogin {
@@ -150,7 +150,7 @@ async function login() {
     width: 200px;
     height: 200px;
     background-color: white;
-    box-shadow: 0px 2px 4px rgba($color: #000000, $alpha: 0.7);
+    // box-shadow: 0px 2px 4px rgba($color: #000000, $alpha: 0.7);
 }
 
 .form {
@@ -163,7 +163,7 @@ async function login() {
 .botonLogin {
     display: flex;
     justify-self: center;
-    background-color: #6BBB6B;
+    background-color: #6FC33D;
     border-radius: 10px;
 }
 </style>

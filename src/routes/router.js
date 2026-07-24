@@ -8,6 +8,7 @@ import ViewProveedor from "../views/ViewProveedor.vue";
 import ViewTokenExpirado from "../views/ViewTokenExpirado.vue";
 import registroExitoso from "../views/RegistroExitoso.vue";
 import AprobacionPreRegistro from "../views/AprobarPreRegistro.vue"
+import ActivarCuenta from "../views/ActivarCuenta.vue";
 
 const routes = [
     {path: '/', component: () => import('../views/Login.vue')},
@@ -15,7 +16,8 @@ const routes = [
     {path: '/formulario-proveedor/:token', component: ViewProveedor},
     {path: '/token-invalido', component: ViewTokenExpirado},
     {path: '/registro-exitoso', component: registroExitoso},
-    {path: '/aprobacion-pre-registro/:razonSocial', component: AprobacionPreRegistro, meta: {requiresAuth: true}},
+    {path: '/aprobacion-pre-registro/:razonSocial', name: 'AprobarPreRegistro', component: AprobacionPreRegistro, meta: {requiresAuth: true}},
+    {path: '/activar-cuenta', component: ActivarCuenta},
 ]
 
 export const router = createRouter({
