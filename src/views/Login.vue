@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router';
 import apiClient from '../services/axios.js';
 import axios from 'axios';
 
+import logo from '../assets/img/Logo_login.png'
+
 import { exitoNotify, errorNotify } from '../composables/Notify';
 import { useUsuarioStore } from '../stores/usuario.js';
 
@@ -48,18 +50,19 @@ async function login() {
             password: password.value
         });
 
-        console.log("Login exitoso: ", r.data.data.usuario);
+        console.log("Login exitoso: ", r.data);
         // console.log("Token: ", r.data.data.token);
 
-        usuarioStore.setUsuario(r.data.data.usuario); // Guardar el usuario en el store
-        usuarioStore.setToken(r.data.data.token); // Guardar el token en el store
+        usuarioStore.setUsuario(r.data.usuario); // Guardar el usuario en el store
+        usuarioStore.setToken(r.data.token); // Guardar el token en el store
 
         // console.log('Usuario guardado:', usuarioStore.usuario);
         // console.log('Token guardado:', usuarioStore.token);
 
-        exitoNotify(`¡Bienvenido, ${usuarioStore.usuario.nombre}!`);
+        exitoNotify(`¡Bienvenido, ${r.data.usuario.nombre}!`);
 
-        router.push('/dashboard')
+        const redirectPath = route.query.redirect || '/dashboard'
+        await router.push(redirectPath)
         
     } catch (error) {
         console.error("Error al iniciar sesión", error.response?.data || error);
@@ -78,7 +81,7 @@ async function login() {
             <h1 class="titulo">Sistema Gestión de Proveedores</h1>
 
             <div class="logoLogin">
-                <img class="logo q-mb-xl" src="../assets/Logo_login.png" alt="Logo_del_Login">
+                <img class="logo q-mb-xl shadow-10" :src="logo" alt="Logo">
             </div>
 
             <q-form @submit.prevent="login">
@@ -111,7 +114,7 @@ async function login() {
 
 <style lang="scss" scoped>
 .login-wrapper {
-    background: linear-gradient(#0a2833 0%, #3454d1 50%, #6BBB6B 100%);
+    background: linear-gradient(#142808 0%, #3454d1 50%, #6FC33D 100%);
     min-height: 100vh;
     display: flex;
     justify-content: center;
@@ -132,7 +135,7 @@ async function login() {
 .titulo {
     text-align: center;
     font-size: 23px;
-    color: #6BBB6B;
+    color: #6FC33D;
 }
 
 .logoLogin {
@@ -147,7 +150,7 @@ async function login() {
     width: 200px;
     height: 200px;
     background-color: white;
-    box-shadow: 0px 2px 4px rgba($color: #000000, $alpha: 0.7);
+    // box-shadow: 0px 2px 4px rgba($color: #000000, $alpha: 0.7);
 }
 
 .form {
@@ -160,7 +163,7 @@ async function login() {
 .botonLogin {
     display: flex;
     justify-self: center;
-    background-color: #6BBB6B;
+    background-color: #6FC33D;
     border-radius: 10px;
 }
 </style>

@@ -1,20 +1,76 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import axios from 'axios';
+// 1. IMPORTS
+import { ref, onMounted, watch, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useProveedorStore } from '../stores/proveedor.js';
 import { useAprobarPreRegistroStore } from '../stores/aprobarPreRegistro.js';
 import { exitoNotify, errorNotify } from '../composables/Notify.js';
-import { router } from '../routes/router.js';
 import apiClient from '../services/axios.js';
+import logo from '../assets/img/Logo_login.png'
 
+// 2. INSTANCIAS (ruta, router, stores)
 const route = useRoute();
+const router = useRouter();
 const proveedorStore = useProveedorStore();
 const aprobacionPreRegistroStore = useAprobarPreRegistroStore();
 
+// 3. MODO Y TOKENS
+const modo = ref('preregistro'); // preregistro o actualización
+const tokenActualizacion = ref(null);
+const tokenValido = ref(false);
+const cargando = ref(true);
+const documentosExistentes = ref([]);
 
+// 4. ESTADO REACTIVO - Datos del formulario
+const pais = ref('');
 const nit = ref('');
 const dv = ref('');
+const razonSocial = ref('');
+const direccionNotificacion = ref('');
+const telefono = ref('');
+const ciudad = ref('');
+
+// Representante legal
+const nombreRepresentante = ref('');
+const tipoDocumentoRepresentante = ref('');
+const numeroIdentificacion = ref('');
+const telefonoRepresentante = ref('');
+const correoElectronicoRepresentante = ref('');
+
+// Representante comercial
+const nombreRepresentanteComercial = ref('');
+const cargoRepresentanteComercial = ref('');
+const telefonoRepresentanteComercial = ref('');
+const correoElectronicoRepresentanteComercial = ref('');
+
+// Representante responsable de facturación
+const nombresApellidosResponsable = ref('');
+const cargoResponsableFacturacion = ref('');
+const correoElectronicoResponsable = ref('');
+
+// Datos adicionales
+const tipoContribuyente = ref('');
+const tipoProveedor = ref('');
+const otroTipoProveedor = ref('');
+
+// 5. ESTADO REACTIVO - Autorizaciones y diálogos
+const autorizaDatosPersonales = ref(false);
+const autorizaConflictos = ref(false);
+const firmaAceptadaDatosPersonales = ref(false);
+const firmaAceptadaConflictos = ref(false);
+const fechaFirmaDatos = ref('');
+const fechaFirmaConflictos = ref('');
+const dialogDatos = ref(false);
+const dialogConflictos = ref(false);
+const dialogDatosAbierto = ref(false);
+const dialogConflictosAbierto = ref(false);
+
+// 6. ESTADO REACTIVO - Documentos y carga
+const documentosRequeridos = ref([]);
+const loading = ref(false);
+const intentoEnviar = ref(false);
+
+// 7. DATOS ESTATICOS
 const dvOpciones = [
     { label: '0', value: '0' },
     { label: '1', value: '1' },
@@ -27,34 +83,16 @@ const dvOpciones = [
     { label: '8', value: '8' },
     { label: '9', value: '9' },
 ];
-const razonSocial = ref('');
-const direccionNotificacion = ref('');
-const telefono = ref('');
-const ciudad = ref('');
-const nombreRepresentante = ref('');
-const tipoDocumentoRepresentante = ref('');
 const tipoDocumentoOptions = [
     { label: 'Cédula de Ciudadanía', value: 'Cédula de Ciudadanía' },
     { label: 'Cédula de Extranjería', value: 'Cédula de Extranjería' },
     { label: 'Pasaporte', value: 'Pasaporte' },
     { label: 'Otro', value: 'Otro' },
 ]
-const numeroIdentificacion = ref('');
-const telefonoRepresentante = ref('');
-const correoElectronicoRepresentante = ref('');
-const nombreRepresentanteComercial = ref('');
-const cargoRepresentanteComercial = ref('');
-const telefonoRepresentanteComercial = ref('');
-const correoElectronicoRepresentanteComercial = ref('');
-const nombresApellidosResponsable = ref('');
-const cargoResponsableFacturacion = ref('');
-const correoElectronicoResponsable = ref('');
-const tipoContribuyente = ref('');
 const tipoContribuyenteOptions = [
     { label: 'Persona Natural', value: 'Persona Natural' },
     { label: 'Persona Jurídica', value: 'Persona Jurídica' }
 ];
-const tipoProveedor = ref('');
 const tipoProveedorOptions = [
     { label: 'Ferretería y Materiales de Construcción', value: 'Ferretería y materiales de construcción' },
     { label: 'Elementos de Protección Personal (EPP)', value: 'EPP' },
@@ -65,54 +103,314 @@ const tipoProveedorOptions = [
     { label: 'Diseño de obras civiles', value: 'Diseño de obras civiles' },
     { label: 'Otro', value: 'Otro' }
 ]
-const otroTipoProveedor = ref('')
-const autorizaDatosPersonales = ref(false);
-const autorizaConflictos = ref(false);
 
-// Campos para la firma por checkbox
-const firmaAceptadaDatosPersonales = ref(false);
-const firmaAceptadaConflictos = ref(false);
-
-// Fechas para los documentos de autorización de datos personales y conflictos de intereses
-const fechaFirmaDatos = ref('');
-const fechaFirmaConflictos = ref('');
-
-// Variables para controlar si el dialogo a sido abierto
-const dialogDatosAbierto = ref(false);
-const dialogConflictosAbierto = ref(false);
-
-const documentosRequeridos = ref([]);
-
-// Array para almacenar los documentos obligatorios según el tipo de contribuyente
-const documentosObligatorios = ref([]);
-
-const loading = ref(false);
-const intentoEnviar = ref(false);
-
-const dialogDatos = ref(false);
-const dialogConflictos = ref(false);
-
-// Fecha actual autómatica
+// 8. CONSTANTES
+const MAX_FILE_SIZE = 10 * 1024 * 1024; //10MB
 const fechaActual = new Date();
 const dia = fechaActual.getDate();
 const mes = fechaActual.toLocaleString('es-CO', { month: 'long' });
 const año = fechaActual.getFullYear();
 
-onMounted(() => {
-    console.log('Token proveedor en store:', proveedorStore.tokenRegistro);
-    const tokenFormUrl = route.params.token;
-    if (!tokenFormUrl) {
-        errorNotify('Enlace inválido: No se encontró el token de registro.');
-    } else {
-        proveedorStore.setTokenRegistro(tokenFormUrl);
-    }
+// 9. HELPERS DE VALIDACION DE CAMPOS
+const requerido = (msg = 'Este campo es obligatorio') => [
+    val => (val !== null && val !== undefined && String(val).trim() !== '') || msg
+]
+
+// Regla de correo obligatorio + formato
+const emailRequerido = [
+    val => !!String(val || '').trim() || 'El correo es obligatorio',
+    val => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(val || '')) || 'Formato de correo inválido'
+]
+
+// 10. COMPUTED
+const configIdentificacion = computed(() => {
+    const esColombia = pais.value?.trim().toLowerCase() === 'colombia';
+    
+    return {
+        label: esColombia ? 'Número de Identificación Tributaria (NIT)' : 'Número de Identificación Fiscal / Tax ID',
+        placeholder: esColombia ? 'Ej: 900.123.456-7' : 'Ej: EIN, RFC, VAT ID',
+        rules: [
+            val => !!val || 'Este campo es obligatorio',
+            // Solo validamos formato colombiano si el país es Colombia
+            val => {
+                if (!esColombia) return true; 
+                // Regex simple para NIT colombiano (puedes ajustarla según tu necesidad)
+                const nitRegex = /^\d{1,10}$/; 
+                return nitRegex.test(val) || 'El NIT debe contener solo números';
+            }
+        ]
+    };
 });
 
-watch(tipoContribuyente, () => {
-    obtenerDocumentosObligatorios();
-})
+// 11. HELPERS DE DOCUMENTOS
+function obtenerTiposDocumentosRequeridos(tipoContribuyente, pais) {
+    // Normalizar: convertir a minusculas y eliminar espacios
+    const paisNormalizado = pais?.trim().toLowerCase() || '';
+    const esColombia = paisNormalizado === 'colombia';
+
+    if (!esColombia) {
+        // Documentos base comunes para ambos tipos
+        const documentosBase = [
+            'IDENTIFICACION TRIBUTARIA DEL PAIS ORIGEN (EIN, RFC, VAT ID)',
+            'CERTIFICACION BANCARIA (Con SWIFT / BIC / IBAN)',
+        ];
+
+        if (tipoContribuyente === 'Persona Jurídica') {
+            return [
+                ...documentosBase,
+                'CERTIFICADO DE EXISTENCIA Y REPRESENTACION LEGAL O EQUIVALENTE AL PAIS',
+                'COPIA DEL PASAPORTE DEL REPRESENTANTE LEGAL',
+                'ESTADOS FINANCIEROS'
+            ];
+        } else if (tipoContribuyente === 'Persona Natural') {
+            return [
+                ...documentosBase,
+                'COPIA DEL PASAPORTE O DOCUMENTO DE IDENTIDAD',
+                'DECLARACIÓN JURADA DE INGRESOS (si aplica)'
+            ];
+        }
+    }
+
+    if (esColombia){
+        if (tipoContribuyente === 'Persona Jurídica') {
+            return [
+                'COPIA DE RUT COMPLETO',
+                'COPIA DE CAMARA COMERCIO VIGENTE (Menor a 90 días)',
+                'COPIA DE DOCUMENTO DE IDENTIFICACION DEL REPRESENTANTE LEGAL',
+                'CERTIFICACION BANCARIA',
+                '2 CERTIFICADOS COMERCIALES',
+                'ESTADOS FINANCIEROS COMPARATIVOS DE LOS (2) ULTIMOS AÑOS'
+            ];
+        } else if (tipoContribuyente === 'Persona Natural') {
+            return [
+                'COPIA DE RUT COMPLETO',
+                'COPIA DE DOCUMENTO DE IDENTIFICACION DEL REPRESENTANTE LEGAL',
+                'CERTIFICACIÓN BANCARIA'
+            ];
+        }
+    }
+    return [];
+}
+
+// Saber si el documento es "2 CERTIFICADOS COMERCIALES"
+const esCertificadosComerciales = (tipo) => {
+    return (tipo || '').toUpperCase().includes('2 CERTIFICADOS COMERCIALES')
+}
+
+// Obtener el máximo de archivos permitido por tipo de documento
+const obtenerMaxArchivos = (tipo) => {
+    return esCertificadosComerciales(tipo) ? 2 : 1
+}
+
+// Función auxiliar para formatear los bytes a megabytes
+const formatearTamanoArchivo = (archivos) => {
+    if (!archivos || archivos.length === 0) return '';
+
+    // Sumar el tamaño de todos los archivos seleccionados
+    const totalBytes = archivos.reduce((acc, file) => acc + (file.size || 0), 0);
+    const mb = (totalBytes / (1024 * 1024)).toFixed(2);
+
+    return archivos.length === 1
+        ? `${mb} MB`
+        : `${archivos.length} archivos (${mb} MB)`;
+}
+
+// Validar archivos seleccionados
+const validarArchivos = (archivos, doc) => {
+    if (!archivos) {
+        doc.archivo = [];
+        return;
+    }
+
+    let files = Array.isArray(archivos) ? [...archivos] : [archivos]
+
+    if (files.length === 0) {
+        doc.archivo = [];
+        return;
+    }
+
+    const maxArchivos = obtenerMaxArchivos(doc.tipo)
+
+    // Validar que sean PDF
+    const soloPdf = files.filter(
+        (file) => 
+            file.type === 'application/pdf' ||
+            file.name?.toLowerCase().endsWith('.pdf')
+    )
+
+    if (soloPdf.length !== files.length) {
+        errorNotify('Solo se permiten archivos PDF.')
+    }
+
+    // Validar peso máximo (10 MB)
+    const porPeso = soloPdf.filter((file) => file.size <= MAX_FILE_SIZE)
+
+    if (porPeso.length !== soloPdf.length) {
+        errorNotify(`Uno o más archivos superan el tamaño máximo de 10 MB.`)
+    }
+
+    // Validar cantidad máxima
+    const seleccionFinal = porPeso.slice(0, maxArchivos)
+
+    if (porPeso.length > maxArchivos) {
+        errorNotify(
+            maxArchivos === 1
+                ? `El documento "${doc.tipo}" solo permite 1 archivo.`
+                : `El documento "${doc.tipo}" permite máximo ${maxArchivos} archivos.`
+        )
+    }
+
+    doc.archivo = seleccionFinal
+}
+
+// Validar exactamente que "2 CERTIFICADOS COMERCIALES" sean dos archivos
+const validarDocumentosAntesDeEnviar = () => {
+    for (const doc of documentosRequeridos.value) {
+        const cantidad = doc.archivo?.length || 0
+        const maxArchivos = obtenerMaxArchivos(doc.tipo)
+
+        // Validar que todos los documentos requeridos tengan archivo
+        if (cantidad === 0) {
+            errorNotify(`Debe cargar el documento "${doc.tipo}".`);
+            return false;
+        }
+
+        // Validar que los certificados comerciales sean exactamente 2
+        if (esCertificadosComerciales(doc.tipo) && cantidad !== 2) {
+            errorNotify(`El documento "${doc.tipo}" debe tener exactamente 2 archivos.`);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// 12. CARGA DIRECTA A SHAREPOINT
+async function solicitarUrlsCarga(token, archivosInfo, razonSocial) {
+    // archivosInfo: [{ nombreOriginal, tipo }]
+    const response = await apiClient.post(`api/proveedor/solicitar-urls-carga/${token}`, {
+        archivos: archivosInfo,
+        razonSocial: razonSocial
+    });
+    return response.data;  // { success, urls: [{ nombre, nombreOriginal, tipo, uploadUrl }] }
+}
+
+async function subirArchivoUrl(uploadUrl, file) {
+    const fileSize = file.size;
+    const range = `bytes 0-${fileSize-1}/${fileSize}`;
+    // Usamos fetch porque axios podría tener problemas con streams en navegador
+    const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 
+            'Content-Type': 'application/octet-stream',
+            'Content-Range': range
+         },
+        body: file
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error al subir archivo: ${response.status} ${errorText}`);
+    }
+    return true;
+}
+
+// Subir varios archivos en secuencia
+async function subirArchivos(urls, archivosPorIndice) {
+    const resultados = [];
+    for (let i = 0; i < urls.length; i++) {
+        const { uploadUrl, nombre, tipo, nombreOriginal } = urls[i];
+        const file = archivosPorIndice[i];
+        console.log(`Subiendo archivo ${i}: ${nombreOriginal} (${file.size} bytes) a ${uploadUrl}`);
+        try {
+            await subirArchivoUrl(uploadUrl, file);
+            console.log(`Subida exitosa: ${nombreOriginal}`);
+            resultados.push({ nombre, tipo, nombreOriginal });
+        } catch (err) {
+            throw new Error(`Fallo al subir "${nombreOriginal}": ${err.message}`);
+            throw err;
+        }
+    }
+    return resultados;
+}
+
+// 13. PRECARGA Y DOCUMENTOS OBLIGATORIOS
+function precargarDatos(data) {
+    // Información general
+    pais.value = data.Pais || '';
+    nit.value = data.NIT || '';
+    dv.value = data.DV || '';
+    razonSocial.value = data.RazonSocial || '';
+    direccionNotificacion.value = data.DireccionNotificacion || '';
+    telefono.value = data.Telefono || '';
+    ciudad.value = data.Ciudad || '';
+    // Información del Representante Legal
+    nombreRepresentante.value = data.NombreRepresentante || '';
+    tipoDocumentoRepresentante.value = data.TipoDocumentoRepresentante || '';
+    numeroIdentificacion.value = data.NumeroIdentificacion || '';
+    telefonoRepresentante.value = data.TelefonoRepresentante || '';
+    correoElectronicoRepresentante.value = data.CorreoElectronicoRepresentante || '';
+    // Información representante comercial
+    nombreRepresentanteComercial.value = data.NombreRepresentanteComercial || '';
+    cargoRepresentanteComercial.value = data.CargoRepresentanteComercial || '';
+    telefonoRepresentanteComercial.value = data.TelefonoRepresentanteComercial || '';
+    correoElectronicoRepresentanteComercial.value = data.CorreoElectronicoRepresentanteComercial || '';
+    // Información del responsable de facturación
+    nombresApellidosResponsable.value = data.NombresApellidosResponsable || '';
+    cargoResponsableFacturacion.value = data.CargoResponsableFacturacion || '';
+    correoElectronicoResponsable.value = data.CorreoElectronicoResponsable || '';
+    // Otra información
+    tipoContribuyente.value = data.TipoContribuyente || '';
+    tipoProveedor.value = data.TipoProveedor || '';
+    otroTipoProveedor.value = data.OtroTipoProveedor || '';
+    // Documentos
+    if (data.Documentos && Array.isArray(data.Documentos)) {
+        documentosExistentes.value = data.Documentos;
+    }
+
+    // Obtener tipos de documentos requeridos según el tipo de contribuyente
+    const tiposRequeridos = obtenerTiposDocumentosRequeridos(data.TipoContribuyente, data.Pais);
+
+    // Obtener documentos existentes del proveedor
+    const docsExistentes = data.Documentos || [];
+    console.log('Documentos existente:', docsExistentes);
+
+    // Construir documentosRequeridos con la estructura esperada
+    documentosRequeridos.value = tiposRequeridos.map(tipo => {
+        const existente = docsExistentes.find(doc => doc.tipo === tipo);
+        return {
+            tipo: tipo,
+            archivo: [],
+            nombreExistente: existente ? existente.nombreOriginal : null,
+            urlExistente: existente ? existente.url : null,
+            reemplazar: false,
+        };
+    });
+}
+
+function obtenerDocumentosObligatorios() {
+    // Usar la función principal que considera el país
+    const tiposRequeridos = obtenerTiposDocumentosRequeridos(tipoContribuyente.value, pais.value);
+
+    // Crear estructura con estado por documento
+    documentosRequeridos.value = tiposRequeridos.map(tipo => ({
+        tipo,
+        archivo: [],
+        url: null,
+        subido: false
+    }));
+    console.log('documentosRequeridos inicializado:', documentosRequeridos.value);
+}
+
+// 14. LIMPIEZA
+// Función para limpiar el campo "Otro" si cambian la selección
+const limpiarOtroSiCambia = (nuevoValor) => {
+    if (nuevoValor !== 'Otro') {
+        otroTipoProveedor.value = '';
+    }
+};
 
 async function limpiarFormulario() {
+    pais.value = '';
     nit.value = '';
     razonSocial.value = '';
     dv.value = '';
@@ -142,100 +440,141 @@ async function limpiarFormulario() {
     documentosRequeridos.value = [];
 }
 
-// Función para limpiar el campo "Otro" si cambian la selección
-const limpiarOtroSiCambia = (nuevoValor) => {
-    if (nuevoValor !== 'Otro') {
-        otroTipoProveedor.value = '';
-    }
-};
-
+// 15. ACCION PRINCIPAL - Guardar registro
 async function crearRegistro() {
+    if (loading.value) return; // Evitar envíos múltiples
     loading.value = true;
     intentoEnviar.value = true;
-    console.log('Token de registro:', proveedorStore.tokenRegistro); // Verificar el token antes de la solicitud
 
-    const tokenRegistro = route.params.token;
-
-    if (!tokenRegistro) {
-        errorNotify('Sesión expirada o enlace inválido. Por favor, solicite un nuevo enlace de registro.');
+    if (!validarDocumentosAntesDeEnviar()) {
         loading.value = false;
         return;
     }
 
-    if (!autorizaDatosPersonales.value || !autorizaConflictos.value) {
-        errorNotify('Debe leer y aceptar ambas autorizaciones para continuar con el registro.');
-        // Abrir el diálogo que falta
-        if (!autorizaDatosPersonales.value) dialogDatos.value = true;
-        else if (!autorizaConflictos.value) dialogConflictos.value = true;
+    const token = modo.value === 'preregistro' ? route.params.token : tokenActualizacion.value;
+    if (!token) {
+        errorNotify('Sesión expirada o enlace inválido. Por favor, solicite un nuevo enlace');
         loading.value = false;
         return;
+    }
+
+    // Validaciones comunes
+    if (!nit.value || !razonSocial.value || !direccionNotificacion.value) {
+        errorNotify('Por favor complete todos los campos obligatorios');
+        loading.value = false;
+        return;
+    }
+
+    // Validación solo para pre-registro
+    if (modo.value === 'preregistro') {
+        if (!autorizaDatosPersonales.value || !autorizaConflictos.value) {
+            errorNotify('Debe leer y aceptar ambas autorizaciones para continuar con el registro.');
+            // Abrir el diálogo que falta
+            if (!autorizaDatosPersonales.value) dialogDatos.value = true;
+            else if (!autorizaConflictos.value) dialogConflictos.value = true;
+            loading.value = false;
+            return;
+        }
+    };
+    // Construir dos arrays paralelos: archivos (File) y metadatos (tipo, nombreOriginal)
+    const archivosParaSubir = [];  // File objects
+    const archivosInfo = [];  // { nombreOriginal, tipo }
+
+    // a) Documentos requeridos
+    for (const doc of documentosRequeridos.value) {
+        if (doc.archivo && doc.archivo.length > 0) {
+            for (const file of doc.archivo) {
+                // Validar tamaño individual 
+                if (file.size > MAX_FILE_SIZE) {
+                    errorNotify(`El archivo "${file.name}" supera el tamaño máximo de 5 MB`);
+                    loading.value = false;
+                    return;
+                }
+                archivosParaSubir.push(file);
+                archivosInfo.push({ nombreOriginal: file.name, tipo: doc.tipo });
+            }
+        }
+    }
+
+    // PASO 1: Obtener URLs de carga
+    let urlsCarga = [];
+    try {
+        const resp = await solicitarUrlsCarga(token, archivosInfo, razonSocial.value.trim());
+        urlsCarga = resp.urls;  // [{ nombre, nombreOriginal, tipo, uploadUrl }]
+    } catch (error) {
+        console.error('Error al solicitar URLs de carga:', error);
+        errorNotify(error.response?.data?.msg || 'Error al preparar la carga de documentos');
+        loading.value = false;
+        return;
+    }
+
+    // PASO 2: Subir archivos directamente a SharePoint
+    let archivosSubidos = [];
+    try {
+        archivosSubidos = await subirArchivos(urlsCarga, archivosParaSubir);
+    } catch (error) {
+        console.error('Error al subir archivos:', error);
+        errorNotify(error.message || 'Error al subir los documentos');
+        loading.value = false;
+        return;
+    }
+
+    // PASO 3: Enviar metadatos y referencia al backend
+    const datosProveedor = {
+        Pais: pais.value.trim(),
+        NIT: nit.value.trim(),
+        DV: dv.value,
+        RazonSocial: razonSocial.value.trim(),
+        DireccionNotificacion: direccionNotificacion.value.trim(),
+        Telefono: telefono.value.trim(),
+        Ciudad: ciudad.value.trim(),
+        NombreRepresentante: nombreRepresentante.value.trim(),
+        TipoDocumentoRepresentante: tipoDocumentoRepresentante.value.trim(),
+        NumeroIdentificacion: numeroIdentificacion.value.trim(),
+        TelefonoRepresentante: telefonoRepresentante.value.trim(),
+        CorreoElectronicoRepresentante: correoElectronicoRepresentante.value.trim(),
+        NombreRepresentanteComercial: nombreRepresentanteComercial.value.trim(),
+        CargoRepresentanteComercial: cargoRepresentanteComercial.value.trim(),
+        TelefonoRepresentanteComercial: telefonoRepresentanteComercial.value.trim(),
+        CorreoElectronicoRepresentanteComercial: correoElectronicoRepresentanteComercial.value.trim(),
+        NombresApellidosResponsable: nombresApellidosResponsable.value.trim(),
+        CargoResponsableFacturacion: cargoResponsableFacturacion.value.trim(),
+        CorreoElectronicoResponsable: correoElectronicoResponsable.value.trim(),
+        TipoContribuyente: tipoContribuyente.value,
+        TipoProveedor: tipoProveedor.value,
+        OtroTipoProveedor: otroTipoProveedor.value.trim(),
+        AutorizaDatosPersonales: modo.value === 'preregistro' ? autorizaDatosPersonales.value : true,
+        AutorizaConflictos: modo.value === 'preregistro' ? autorizaConflictos.value : true,
     };
 
-    //Validar que que cada documento obligatorio tenga un archivo asignado
-    const documentosFaltantes = documentosRequeridos.value.filter(d => !d.archivo);
-    if (documentosFaltantes.length > 0) {
-        errorNotify(`Faltan ${documentosFaltantes.length} documento(s) por cargar.`);
-        loading.value = false;
-        return;
-    }
+    const bodyFinal = {
+        ...datosProveedor,
+        archivosSubidos  // contiene [{ nombre, tipo, nombreOriginal }]
+    };
 
-    // Subir primero los archivos a Cloudinary
     try {
-        const promesaSubida = documentosRequeridos.value.map(async (doc) => {
-            const formData = new FormData();
-            formData.append('archivo', doc.archivo);
-            formData.append('tipo', doc.tipo);
-
-            const res = await apiClient.post(
-                'api/proveedor/upload',
-                formData,
-                { headers: { 'Content-Type': 'multipart/form-data' } }
-            );
-            return res.data.data
-            console.log(`Subido ${doc.tipo} - ${doc.archivo.name}`)
-        });
-
-        const urlsDocumentos = await Promise.all(promesaSubida);
-
-        const response = await apiClient.post(`api/proveedor/registro/completar/${tokenRegistro}`, {
-            NIT: nit.value,
-            DV: dv.value,
-            RazonSocial: razonSocial.value,
-            DireccionNotificacion: direccionNotificacion.value,
-            Telefono: telefono.value,
-            Ciudad: ciudad.value,
-            NombreRepresentante: nombreRepresentante.value,
-            TipoDocumentoRepresentante: tipoDocumentoRepresentante.value,
-            NumeroIdentificacion: numeroIdentificacion.value,
-            TelefonoRepresentante: telefonoRepresentante.value,
-            CorreoElectronicoRepresentante: correoElectronicoRepresentante.value,
-            NombreRepresentanteComercial: nombreRepresentanteComercial.value,
-            CargoRepresentanteComercial: cargoRepresentanteComercial.value,
-            TelefonoRepresentanteComercial: telefonoRepresentanteComercial.value,
-            CorreoElectronicoRepresentanteComercial: correoElectronicoRepresentanteComercial.value,
-            NombresApellidosResponsable: nombresApellidosResponsable.value,
-            CargoResponsableFacturacion: cargoResponsableFacturacion.value,
-            CorreoElectronicoResponsable: correoElectronicoResponsable.value,
-            TipoContribuyente: tipoContribuyente.value,
-            TipoProveedor: tipoProveedor.value,
-            OtroTipoProveedor: otroTipoProveedor.value,
-            AutorizaDatosPersonales: autorizaDatosPersonales.value,
-            AutorizaConflictos: autorizaConflictos.value,
-            Documentos: urlsDocumentos  //URLs reales de Cloudinary
-        });
-        console.log(response.data);
-
-        aprobacionPreRegistroStore.setIdProveedor(response.data._id);
-        aprobacionPreRegistroStore.setPreRegistroAprobar(response.data);
-
-        limpiarFormulario();
-
-        exitoNotify('Registro creado exitosamente');
-        // Redirigir a la pantalla de éxito
-        router.push('/registro-exitoso');
+        let response;
+        if (modo.value === 'preregistro') {
+            // Enviar la petición con multipart/form-data
+            response = await apiClient.post(
+                `api/proveedor/registro/completar-registro-carga-directa/${token}`, bodyFinal);
+            if (response.data.success) {
+                aprobacionPreRegistroStore.setRazonSocialProveedor(response.data.RazonSocial);
+                aprobacionPreRegistroStore.setPreRegistroAprobar(response.data);
+                exitoNotify('Registro creado exitosamente')
+                router.push('/registro-exitoso')
+            }
+        } else {
+            // Actualización:
+            response = await apiClient.put(`api/proveedor/${token}/actualizar-datos-carga-directa`, bodyFinal);
+    
+            if (response.data.success) {
+                exitoNotify('Datos actualizados exitosamente');
+                router.push('/registro-exitoso');
+            }
+        }
     } catch (error) {
         console.error('Error al guardar el registro', error);
-        
         // Manejo específico si el token expiró durante el proceso (401 o 403)
         if (error.response?.status === 401 || error.response?.status === 403) {
             errorNotify('El enlace de registro ha expirado o ya fue utilizado.');
@@ -247,6 +586,7 @@ async function crearRegistro() {
     }
 }
 
+// 16. AUTORIZACIONES / DIALOGOS (Solo pre-registro)
 const manejarClickCheckbox = (val, tipo) => {
     // Si el checkbox se desmarca, actualizar el estado correspondiente
     if (val === false) {
@@ -278,8 +618,8 @@ const onDialogDatosOpen = () => {
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
-    })
-}
+    });
+};
 
 const onDialogConflictosOpen = () => {
     fechaFirmaConflictos.value = new Date().toLocaleString('es-CO', {
@@ -320,126 +660,234 @@ const onDialogConflictosClose = () => {
     dialogConflictosAbierto.value = true; // Marcar que el diálogo de conflictos ha sido abierto
 };
 
-function obtenerDocumentosObligatorios() {
-    let docs = [];
+// 17. WATCHERS
+watch(tipoContribuyente, (nuevoValor) => {
+    if (modo.value === 'preregistro') {
+        obtenerDocumentosObligatorios();
+    } else if (modo.value === 'actualizacion' && nuevoValor) {
+        const tiposRequeridos = obtenerTiposDocumentosRequeridos(nuevoValor, pais.value);
 
-    if (tipoContribuyente.value === 'Persona Jurídica') {
-        docs = [
-            'COPIA DE RUT COMPLETO',
-            'COPIA DE CÁMARA COMERCIO VIGENTE (Menor a 90 días)',
-            'COPIA DE DOCUMENTO DE IDENTIFICACION DEL REPRESENTANTE LEGAL',
-            'CERTIFICACION BANCARIA',
-            '2 CERTIFICADOS COMERCIALES',
-            'ESTADOS FINANCIEROS COMPARATIVOS DE LOS (2) ÚLTIMOS AÑOS.'
-        ];
-    } else if (tipoContribuyente.value === 'Persona Natural') {
-        docs = [
-            'COPIA DE RUT COMPLETO',
-            'COPIA DE DOCUMENTO DE IDENTIFICACION',
-            'CERTIFICACION BANCARIA',
-        ];
+        const docsExistentes = documentosExistentes.value || [];
+        documentosRequeridos.value = tiposRequeridos.map(tipo => {
+            const existente = docsExistentes.find(doc => doc.tipo === tipo);
+            //Buscar también en documentosRequeridos actual (por si hay archivo subido)
+            const actual = documentosRequeridos.value.find(d => d.tipo === tipo);
+            return {
+                tipo: tipo,
+                archivo: actual?.archivo || [],
+                nombreExistente: existente ? existente.nombreOriginal : null,
+                urlExistente: existente ? existente.url : null,
+                reemplazar: actual?.reemplazar || false
+            };
+        });
     }
+});
 
-    // Crear estructura con estado por documento
-    documentosRequeridos.value = docs.map(tipo => ({
-        tipo,
-        archivo: null,
-        url: null,
-        subido: false
-    }));
+// Watch para el cambio de pais también debe actualizar documentos
+watch(pais, (nuevoPais) => {
+    if (tipoContribuyente.value && modo.value === 'preregistro') {
+        obtenerDocumentosObligatorios();
+    } else if (tipoContribuyente.value && modo.value === 'actualizacion') {
+        const tiposRequeridos = obtenerTiposDocumentosRequeridos(tipoContribuyente.value, nuevoPais);
+        const docsExistentes = documentosExistentes.value || [];
+        documentosRequeridos.value = tiposRequeridos.map(tipo => {
+            const existente = docsExistentes.find(doc => doc.tipo === tipo);
+            const actual = documentosRequeridos.value.find(d => d.tipo === tipo);
+            return {
+                tipo: tipo,
+                archivo: actual?.archivo || [],
+                nombreExistente: existente ? existente.nombreOriginal : null,
+                urlExistente: existente ? existente.url : null,
+                reemplazar: actual?.reemplazar || false
+            };
+        });
+    }
+});
 
-    console.log('documentosRequeridos inicializado:', documentosRequeridos.value);
-
-}
-
+// 18. CICLO DE VIDA
+onMounted(async () => {
+    // console.log('Token proveedor en store:', proveedorStore.tokenRegistro);
+    const tokenFormUrl = route.params.token;
+    if (!tokenFormUrl) {
+        errorNotify('Enlace inválido');
+        router.push('/token-invalido');
+        return;
+    }
+    // 1. Intentar obtener datos como token de actualización
+    try {
+        const response = await apiClient.get(`api/proveedor/actualizacion/${tokenFormUrl}`);
+        if (response.data.success) {
+            // Modo actualización
+            modo.value = 'actualizacion';
+            tokenActualizacion.value = tokenFormUrl;
+            precargarDatos(response.data.data);
+            tokenValido.value = true;
+            exitoNotify('Formulario precargado con tus datos. Modifica lo necesario.');
+            cargando.value = false;
+            return;
+        }
+    } catch (error) {
+        // Si da 404 no es token de actualización
+        if (error.response?.status !== 404) {
+            errorNotify('Error al verificar el enlace');
+            router.push('/token-invalido');
+            return;
+        }
+    }
+    // 2. Si no es actualización, validar como token de pre-registro
+    try {
+        const response = await apiClient.get(`api/proveedor/verificar-token/${tokenFormUrl}`);
+        if (response.data.success) {
+            modo.value = 'preregistro';
+            tokenValido.value = true;
+            proveedorStore.setTokenRegistro(tokenFormUrl);
+        } else {
+            errorNotify(response.data.msg || 'El enlace ha expirado o ya fue utilizado');
+            router.push('/token-invalido')
+        }
+    } catch (error) {
+        errorNotify(error.response?.data?.msg || 'Error al validar el enlace');
+        router.push('/token-invalido')
+    } finally {
+        cargando.value = false;
+    }
+});
 </script>
 
 <template>
-    <div class="pantallaProveedor bg-grey-2" style="height: 100vh;">
+
+    <div v-if="cargando" class="flex flex-center" style="height: 100vh; background-color: #f5f5f5;">
+        <div class="text-center">
+            <q-spinner size="60px" color="primary"/>
+            <p class="q-mt-md text-grey-7">Cargando formulario, espere un momento...</p>
+        </div>
+    </div>
+
+    <div v-else class="pantallaProveedor bg-grey-2" :style="{ '--bg-logo' : `url(${logo})` }">
+        <!-- <img :src="logo" alt="fondo formulario"> -->
         <div class="titulo ">
-            <h1 class="text-h3 text-weight-bold text-center text-secondary q-mb-md q-pt-md">Formulario de Proveedor</h1>
-            <p class="text-body1 text-center text-grey-6 q-pb-md" style="width: 300px; margin: 0 auto;">
-                Complete los datos generales y cargue la documentación requerida para mantener vigente su estado como
-                proveedor
-            </p>
+            <h1 class="text-h3 text-weight-bold text-center text-secondary q-mb-md q-pt-md">
+                {{ modo === 'preregistro' ? 'Formulario de Proveedor' : 'Actualización de Datos' }}
+            </h1>
+            <div class="bg-grey-2" style="width: 300px; margin: 0 auto;">
+                <p class="text-body1 text-center text-dark q-pb-md" style="width: 300px; margin: 0 auto;">
+                    <span v-if="modo === 'preregistro'">
+                        Complete Los Datos Generales y Cargue La Documentación Requerida.
+                    </span>
+                    <span v-else>
+                        Modifique los campos que necesite actualizar. Puede agregar nuevos documentos
+                    </span>
+                </p>
+            </div>
         </div>
 
         <section
             style="width: 90%; margin: 0 auto; background-color: white; border: 1px solid #ccc; padding: 20px; border-radius: 10px;">
             <q-form @submit.prevent="crearRegistro" class="">
+                <!-- INFORMACIÓN GENERAL -->
                 <p class="text-h5 text-secondary q-pb-md">Información General</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;" class="q-mb-md">
+                    <q-input
+                        style="width: 100%;"
+                        filled
+                        v-model="pais"
+                        label="País de origen *"
+                        :rules="[val => !!val || 'El país es obligatorio']"
+                    />
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                    <q-input style="width: 42%;" filled v-model="nit"
+                        :label="configIdentificacion.label"
+                        :placeholder="configIdentificacion.placeholder"
+                        :rules="configIdentificacion.rules"
+                        lazy-rules />
 
-                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
-                    <q-input class="inputNit" style="width: 42%;" filled v-model="nit"
-                        label="Número de Identificación Tributaria (NIT)" />
-                    <q-select class="inputCV" style="width: 6%; font-size: 12px;" filled v-model="dv"
-                        :options="dvOpciones" label="DV" emit-value map-options>
-
+                    <q-select v-if="pais === 'Colombia' || pais === 'colombia' || pais === 'COLOMBIA'" style="width: 6%; font-size: 12px;" filled v-model="dv" :options="dvOpciones" label="DV"
+                        emit-value map-options>
                     </q-select>
-                    <q-input class="inputRazonSocial" style="width: 48%;" filled v-model="razonSocial"
-                        label="Razón Social" />
+
+                    <q-input style="width: 48%;" filled v-model="razonSocial" label="Razón Social" :rules="requerido('La razón social es obligatoria')" lazy-rules/>
                 </div>
 
+                <!-- INFORMACION DE NOTIFICACION -->
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Información de Notificación</p>
-                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <q-input style="width: 100%;" filled v-model="direccionNotificacion"
-                        label="Dirección de Notificación" />
-                    <q-input style="width: 48%;" filled v-model="telefono" label="Teléfono" />
-                    <q-input style="width: 48%;" filled v-model="ciudad" label="Ciudad" />
+                        label="Dirección de Notificación" :rules="requerido('La dirección de notificación es obligatoria')" lazy-rules />
+
+                    <q-input style="width: 48%;" filled v-model="telefono" label="Teléfono" :rules="requerido('El teléfono es obligatorio')" lazy-rules />
+
+                    <q-input style="width: 48%;" filled v-model="ciudad" label="Ciudad" :rules="requerido('La ciudad es obligatoria')" lazy-rules />
                 </div>
 
+                <!-- REPRESENTANTE LEGAL -->
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Representante Legal</p>
-                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <q-input style="width: 48%;" filled v-model="nombreRepresentante"
-                        label="Nombre del Representante Legal" />
+                        label="Nombre del Representante Legal" :rules="requerido('El nombre del representante es obligatorio')" lazy-rules />
+
                     <q-select style="width: 48%;" filled v-model="tipoDocumentoRepresentante"
                         :options="tipoDocumentoOptions" label="Tipo de Documento del Representante Legal" emit-value
-                        map-options />
+                        map-options :rules="requerido('Seleccione el tipo de documento')" lazy-rules />
+
                     <q-input style="width: 48%;" filled v-model="numeroIdentificacion"
-                        label="Número de Identificación del Representante Legal" />
+                        label="Número de Identificación del Representante Legal" :rules="requerido('El número de identificación es obligatorio')" lazy-rules />
+
                     <q-input style="width: 48%;" filled v-model="telefonoRepresentante"
-                        label="Teléfono del Representante Legal" />
+                        label="Teléfono del Representante Legal" :rules="requerido('El teléfono es obligatorio')" lazy-rules />
+
                     <q-input style="width: 48%;" filled v-model="correoElectronicoRepresentante"
-                        label="Correo Electrónico del Representante Legal" type="email" />
+                        label="Correo Electrónico del Representante Legal" type="email" :rules="emailRequerido" lazy-rules />
                 </div>
 
+                <!-- REPRESENTANTE COMERCIAL -->
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Información del Representante Comercial</p>
-                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <q-input style="width: 48%;" filled v-model="nombreRepresentanteComercial"
-                        label="Nombre del Representante Comercial" />
+                        label="Nombre del Representante Comercial" :rules="requerido('El nombre del representante comercial es obligatorio')" lazy-rules />
+
                     <q-input style="width: 48%;" filled v-model="cargoRepresentanteComercial"
-                        label="Cargo del Representante Comercial" />
+                        label="Cargo del Representante Comercial" :rules="requerido('El cargo es obligatorio')" lazy-rules />
+
                     <q-input style="width: 48%;" filled v-model="telefonoRepresentanteComercial"
-                        label="Teléfono del Representante Comercial" />
+                        label="Teléfono del Representante Comercial" :rules="requerido('El teléfono es obligatorio')" lazy-rules />
+
                     <q-input style="width: 48%;" filled v-model="correoElectronicoRepresentanteComercial"
-                        label="Correo Electrónico del Representante Comercial" type="email" />
+                        label="Correo Electrónico del Representante Comercial" type="email" :rules="emailRequerido" lazy-rules />
                 </div>
 
+                <!-- RESPONSABLE DE FACTURACION -->
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Responsable de Facturación</p>
-                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <q-input style="width: 48%;" filled v-model="nombresApellidosResponsable"
-                        label="Nombres y Apellidos del Responsable de Facturación" />
+                        label="Nombres y Apellidos del Responsable de Facturación" :rules="requerido('Los nombres y apellidos son obligatorios')" lazy-rules />
+
                     <q-input style="width: 48%;" filled v-model="cargoResponsableFacturacion"
-                        label="Cargo del Responsable de Facturación" />
+                        label="Cargo del Responsable de Facturación" :rules="requerido('El cargo es obligatorio')" lazy-rules />
+
                     <q-input style="width: 100%;" filled v-model="correoElectronicoResponsable"
-                        label="Correo Electrónico del Responsable de Facturación" type="email" />
+                        label="Correo Electrónico del Responsable de Facturación" type="email" :rules="emailRequerido" lazy-rules />
                 </div>
 
+                <!-- DATOS ADICIONALES -->
                 <p class="text-h5 text-secondary q-pt-md q-pb-md">Datos Adicionales</p>
-                <div class="input1y2" style="display: flex; flex-wrap: wrap; gap: 20px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 20px;">
                     <q-select style="width: 48%;" filled v-model="tipoContribuyente" :options="tipoContribuyenteOptions"
-                        label="Tipo de Contribuyente" emit-value map-options />
+                        label="Tipo de Contribuyente" emit-value map-options :rules="requerido('Seleccione el tipo de contribuyente')" lazy-rules />
+
                     <q-select style="width: 48%;" filled v-model="tipoProveedor" :options="tipoProveedorOptions"
-                        label="Tipo de Proveedor" emit-value map-options @update:model-value="limpiarOtroSiCambia" />
+                        label="Tipo de Proveedor" emit-value map-options :rules="requerido('Seleccione el tipo de proveedor')" lazy-rules @update:model-value="limpiarOtroSiCambia" />
 
                     <!-- Input condicional (Solo aparece si es 'Otro') -->
-                    <div style="width: 48%;" v-if="tipoProveedor === 'Otro'">
+                    <div style="width: 100%;" v-if="tipoProveedor === 'Otro'">
                         <q-input filled v-model="otroTipoProveedor" label="Especifique el tipo de proveedor"
                             placeholder="Ej: Consultoría Ambiental"
                             :rules="[val => !!val || 'Este campo es obligatorio']" lazy-rules class="bg-blue-1" />
                     </div>
 
-                    <div style="width: 48%; display: flex; flex-direction: column; gap: 8px;">
+                    <!-- AUTORIZACIONES (solo para pre-registro) -->
+                    <div v-if="modo === 'preregistro'"
+                        style="width: 48%; display: flex; flex-direction: column; gap: 8px;">
 
                         <!-- Autorización de datos personales -->
                         <div style="display: flex; align-items: center; gap: 8px;">
@@ -471,83 +919,137 @@ function obtenerDocumentosObligatorios() {
                     </div>
                 </div>
 
-                <div class="q-mt-md" style="display: flex; flex-direction: column; gap: 12px;">
+                <!-- SECCION DE DOCUMENTOS PARA PRE-REGISTRO -->
+                <div v-if="modo === 'preregistro' && tipoContribuyente" class="q-mt-md">
                     <p class="text-h6 text-secondary">Carga de Documentos</p>
 
                     <!-- Lista de documentos obligatorios -->
-                    <div v-if="tipoContribuyente" class="q-pa-sm bg-blue-1 rounded-borders">
+                    <div class="q-pa-sm bg-blue-1 rounded-borders">
                         <p class="text-weight-bold text-primary q-mb-xs">Documentos requeridos</p>
 
-                        <div v-for="(doc, index) in documentosRequeridos" :key="doc.tipo" class="q-ml-md">
+                        <div v-for="doc in documentosRequeridos" :key="doc.tipo" class="q-ml-md">
                             <p class="text-subtitle2 q-mb-xs">{{ doc.tipo }}</p>
-                            {{ console.log(`Renderizando: ${doc.tipo}, archivo:`, doc.archivo) }}
 
-                            <q-file class="q-mb-lg" v-model="doc.archivo" outlined dense hide-upload-btn
-                                :label="doc.archivo ? doc.archivo.name : 'Seleccione archivo'"
-                                accept=".pdf, .jpg, .jpeg, .png" :color="doc.archivo ? 'primary' : 'grey-5'">
-                                <template v-if="doc.archivo" #append>
-                                    <q-btn flat round dense icon="close" color="grey" @click="doc.archivo = null" />
+                            <q-file 
+                                v-model="doc.archivo" 
+                                @update:model-value="(val) => validarArchivos(val, doc)"
+                                multiple 
+                                outlined 
+                                dense 
+                                hide-upload-btn
+                                accept=".pdf,application/pdf"
+                                :label="doc.archivo && doc.archivo.length > 0 ? formatearTamanoArchivo(doc.archivo)
+                                : obtenerMaxArchivos(doc.tipo) === 2
+                                    ? 'Seleccione 2 archivos PDF'
+                                    : 'Seleccione 1 archivo PDF'
+                                "
+                                :color="doc.archivo && doc.archivo.length > 0 ? 'primary' : 'grey-5'">
+                                <template v-if="doc.archivo && doc.archivo.length > 0" #append>
+                                    <q-btn 
+                                        flat 
+                                        round 
+                                        dense 
+                                        icon="close" 
+                                        color="grey" 
+                                        @click="doc.archivo = []" />
                                 </template>
                             </q-file>
 
+                            <div class="text-caption text-grey-7 q-mb-lg">
+                                {{ 
+                                    obtenerMaxArchivos(doc.tipo) === 2
+                                        ? 'Este documento requiere 2 archivos.'
+                                        : 'Este documento requiere 1 archivo.'
+                                }}
+                            </div>
+
                             <!-- Validación visual por campo -->
-                            <span v-if="intentoEnviar && !doc.archivo" style="color: red; font-size: 12px;">
+                            <span v-if="intentoEnviar && (!doc.archivo || doc.archivo.length === 0)" style="color: red; font-size: 12px;">
                                 Este documento es obligatorio.
                             </span>
                         </div>
                     </div>
-                    <p v-else class="text-body2 text-grey-6">
-                        Seleccione el tipo de contribuyente para ver los documentos requeridos.
-                    </p>
-
-                    <!-- <div style="">
-                        <q-file
-                            v-model="archivosTemp"
-                            @update:model-value="agregarArchivos"
-                            multiple
-                            hide-upload-btn
-                            label="Haga clic para cargar o arrastre sus archivos"
-                            style="border: 1px dashed #ccc;"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            counter
-                        />
-                    </div> -->
-
-                    <!-- Asignación de tipo por archivo -->
-                    <!-- <div v-if="archivos && archivos.length > 0">
-                        <p class="text-weight-bold text-secondary q-mt-sm">
-                            Asigne el tipo de documento para cada archivo cargado:
-                        </p>
-
-                        <div
-                            v-for="(archivo, index) in archivos"
-                            :key="index"
-                            style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;"
-                        >
-
-                        <q-icon name="descripcion" color="primary" size="24px" />
-                        <span class="text-body2" style="width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                            {{ archivo.name }}
-                        </span>
-                        <q-select
-                            style="width: 90%;"
-                            filled
-                            dense
-                            v-model="tiposDocumentos[index]"
-                            :options="documentosObligatorios"
-                            label="Tipo de documento"
-                            emit-value
-                            map-options
-                        />
-                        </div>
-                        <span v-if="intentoEnviar && tiposDocumentos.some(t => !t)" style="color: red; font-size: 12px;">
-                            Debe asignar el tipo a todos los documentos.
-                        </span>
-                    </div> -->
                 </div>
+                <p v-else-if="modo === 'preregistro' && !tipoContribuyente" class="text-body2 text-grey-6 q-mt-md">
+                    Seleccione el tipo de contribuyente para ver los documentos requeridos.
+                </p>
 
-                <div class="boton q-mt-md" style="display: flex; justify-content: flex-end;">
-                    <q-btn type="submit" :submit="true" label="Guardar" color="primary" :loading="loading" />
+                <!--  SECCION DE DOCUMENTOS PARA ACTUALIZACION -->
+                <div v-if="modo === 'actualizacion' && tipoContribuyente" class="q-mt-md">
+                    <p class="text-h6 text-secondary">Actualización de Documentos Obligatorios</p>
+                    <div class="q-pa-sm bg-blue-1 rounded-borders">
+                        <p class="text-weight-bold text-primary q-mb-xs">Documentos requeridos</p>
+                        <div v-for="doc in documentosRequeridos" :key="doc.tipo" class="q-ml-md">
+                            <p class="text-subtitle2 q-mb-xs">{{ doc.tipo }}</p>
+                            <!-- Si ya existe un documento, mostrar información -->
+                            <div v-if="doc.urlExistente && !doc.reemplazar" class="q-mb-sm">
+                                <a :href="doc.urlExistente" target="_blank">{{ doc.nombreExistente }}</a>
+                                <q-btn 
+                                    flat 
+                                    dense 
+                                    icon="refresh"
+                                    color="primary"
+                                    label="Reemplazar"
+                                    @click="doc.reemplazar = true"
+                                    class="q-ml-sm"
+                                />
+                            </div>
+                            <!-- Input para subir nuevo archivo (cuando no existe o se quiera reemplazar) -->
+                             <div v-if="!doc.urlExistente || doc.reemplazar">
+                                <q-file
+                                    v-model="doc.archivo"
+                                    @update:model-value="(val) => validarArchivos(val, doc)"
+                                    multiple
+                                    outlined
+                                    dense
+                                    hide-upload-btn
+                                    accept=".pdf,application/pdf"
+                                    :label="
+                                        doc.archivo && doc.archivo.length > 0
+                                            ? formatearTamanoArchivo(doc.archivo)
+                                            : obtenerMaxArchivos(doc.tipo) === 2
+                                                ? 'Seleccione 2 archivos PDF'
+                                                : 'Seleccione 1 archivo PDF'
+                                    "
+                                    class="q-mb-xs"
+                                >
+                                    <template v-if="doc.archivo && doc.archivo.length > 0" #append>
+                                        <q-btn
+                                            flat
+                                            round
+                                            dense
+                                            icon="close"
+                                            color="grey"
+                                            @click="doc.archivo = []"
+                                        />
+                                    </template>
+                                </q-file>
+
+                                <div class="text-caption text-grey-7 q-mb-lg">
+                                    {{ 
+                                        obtenerMaxArchivos(doc.tipo) === 2
+                                            ? 'Este documento requiere 2 archivos.'
+                                            : 'Este documento requiere 1 archivo.'
+                                    }}
+                                </div>
+
+                                <q-btn v-if="doc.reemplazar"
+                                    flat
+                                    dense
+                                    icon="cancel"
+                                    label="Cancelar"
+                                    @click="doc.reemplazar = false; doc.archivo = []"
+                                />
+                             </div>
+                        </div>
+                    </div>
+                </div>
+                <p v-else-if="modo === 'actualizacion' && !tipoContribuyente" class="text-body2 text-grey-6 q-mt-md">
+                    Seleccione el tipo de contribuyente para ver los documentos requeridos.
+                </p>
+
+                <div class="q-mt-md" style="display: flex; justify-content: flex-end;">
+                    <q-btn type="submit" label="Guardar" color="primary" :loading="loading" :disable="loading" no-caps/>
                 </div>
             </q-form>
         </section>
@@ -560,7 +1062,7 @@ function obtenerDocumentosObligatorios() {
                 <div class="text-h6">Autorización de Datos Personales</div>
                 <div class="text-subtitle2">PCH SAN BARTOLOME SAS ESP</div>
             </q-card-section>
-            <q-card-section style="max-height: 70vh; overflow-y: auto;">
+            <q-card-section class="text-justify" style="max-height: 70vh; overflow-y: auto;">
                 <p>
                     Yo, <strong>{{ nombreRepresentante || '___________________' }}</strong>,
                     identificado como aparece al pie de mi firma, y actuando en representación legal de
@@ -625,7 +1127,7 @@ function obtenerDocumentosObligatorios() {
 
                 <p class="q-mt-md">
                     La presente autorización, se firma a los <strong>{{ dia }}</strong> días del mes de <strong>{{ mes
-                    }}</strong> del año <strong>{{ año }}</strong>
+                        }}</strong> del año <strong>{{ año }}</strong>
                 </p>
                 <p>Nombre del Representante Legal: <strong>{{ nombreRepresentante || '___________________' }}</strong>
                 </p>
@@ -660,7 +1162,7 @@ function obtenerDocumentosObligatorios() {
                 <div class="text-h6">Declaración de Conflictos de Intereses</div>
                 <div class="text-subtitle2">PCH SAN BARTOLOMÉ SAS ESP</div>
             </q-card-section>
-            <q-card-section style="max-height: 80vh; overflow-y: auto;">
+            <q-card-section class="text-justify" style="max-height: 80vh; overflow-y: auto;">
                 <p>
                     Yo, <strong>{{ nombreRepresentante || '___________________' }}</strong>,
                     en calidad de representante de <strong>{{ razonSocial || '___________________' }}</strong>,
@@ -698,7 +1200,7 @@ function obtenerDocumentosObligatorios() {
                 </ol>
                 <p class="q-mt-md">
                     La presente autorización, se firma a los <strong>{{ dia }}</strong> días del mes de <strong>{{ mes
-                    }}</strong> del año <strong>{{ año }}</strong>
+                        }}</strong> del año <strong>{{ año }}</strong>
                 </p>
                 <p>Nombre del Representante Legal: <strong>{{ nombreRepresentante || '___________________' }}</strong>
                 </p>
@@ -732,5 +1234,39 @@ function obtenerDocumentosObligatorios() {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+.pantallaProveedor {
+    position: relative;
+    min-height: 100vh;
+    background-color: #f5f5f5;
+}
+
+.pantallaProveedor::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: var(--bg-logo);
+    background-repeat: repeat;
+    background-size: 155px 120px;
+    opacity: 0.25;
+    pointer-events: none;
+    z-index: 0;
+}
+
+// Asegurar que el contenido esté por encima
+.pantallaProveedor > * {
+    position: relative;
+    z-index: 1;
+}
+
+// Adaptación a móviles
+@media (max-width: 768px) {
+    .pantallaProveedor::before {
+        background-size: 100px 100px;
+    }
 }
 </style>

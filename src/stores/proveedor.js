@@ -3,33 +3,33 @@ import { ref } from 'vue'
 
 export const useProveedorStore = defineStore('proveedor', () => {
     const tokenRegistro = ref(null);
-    const idProveedor = ref(null);
+    const razonSocialProveedor = ref(null);
 
     function setTokenRegistro(data) {
-        console.log('Guardando token:', data);
+        // console.log('Guardando token:', data);
         tokenRegistro.value = data;
     }
 
-    function setIdProveedor(data) {
-        console.log('Guardando idProveedor:', data);
-        idProveedor.value = data;
+    function setRazonSocialProveedor(data) {
+        console.log('Guardando razonSocialProveedor:', data);
+        razonSocialProveedor.value = data;
     }
 
-    function getIdProveedor() {
-        return idProveedor.value;
+    function getRazonSocialProveedor() {
+        return razonSocialProveedor.value;
     }
 
-    function clearIdProveedor() {
-        idProveedor.value = null;
+    function clearRazonSocialProveedor() {
+        razonSocialProveedor.value = null;
     }
 
     return { 
         tokenRegistro, 
         setTokenRegistro, 
-        idProveedor, 
-        setIdProveedor,
-        getIdProveedor,
-        clearIdProveedor
+        razonSocialProveedor, 
+        setRazonSocialProveedor,
+        getRazonSocialProveedor,
+        clearRazonSocialProveedor
     }
 
 }, {

@@ -3,7 +3,7 @@ import { useUsuarioStore } from "../stores/usuario.js"
 import { router } from "../routes/router.js";
 
 const apiClient = axios.create({
-    baseURL: 'https://modulo-proveedores-backend.vercel.app/',
+    baseURL: 'https://inst-sistemasproveedores-ajcue3g5hkh5dpd2.canadacentral-01.azurewebsites.net/'  /* ||   'http://localhost:3001' */,
     headers: {
         'Content-Type': 'application/json'
     }
@@ -14,7 +14,7 @@ apiClient.interceptors.request.use(
     (config) => {
         const usuarioStore = useUsuarioStore();
         if (usuarioStore.token) {
-            config.headers.Authorization = `Bearer ${usuarioStore.token}`;
+            config.headers['x-token'] = usuarioStore.token;
         }
         return config;
     },
@@ -41,7 +41,7 @@ apiClient.interceptors.response.use(
                 // Redirige al login guarando la ruta actual
                 router.push({
                     path: '/',
-                    query: { redirect: router.currentRoute.value.fullPath }
+                    query: { redirect: currentPath }
                 });
             }
         }
