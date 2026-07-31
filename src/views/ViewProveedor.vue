@@ -710,7 +710,7 @@ onMounted(async () => {
     const tokenFormUrl = route.params.token;
     if (!tokenFormUrl) {
         errorNotify('Enlace inválido');
-        routerVue.push('/token-invalido');
+        router.push('/token-invalido');
         return;
     }
     // 1. Intentar obtener datos como token de actualización
@@ -730,7 +730,7 @@ onMounted(async () => {
         // Si da 404 no es token de actualización
         if (error.response?.status !== 404) {
             errorNotify('Error al verificar el enlace');
-            routerVue.push('/token-invalido');
+            router.push('/token-invalido');
             return;
         }
     }
@@ -743,11 +743,11 @@ onMounted(async () => {
             proveedorStore.setTokenRegistro(tokenFormUrl);
         } else {
             errorNotify(response.data.msg || 'El enlace ha expirado o ya fue utilizado');
-            routerVue.push('/token.invalido')
+            router.push('/token-invalido')
         }
     } catch (error) {
         errorNotify(error.response?.data?.msg || 'Error al validar el enlace');
-        routerVue.push('/token-invalido')
+        router.push('/token-invalido')
     } finally {
         cargando.value = false;
     }

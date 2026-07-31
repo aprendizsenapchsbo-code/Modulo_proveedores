@@ -52,6 +52,11 @@ const modalDesdeNotificacion = ref(false);
 const loadingInvitacion = ref(false);
 const loadingEdicion = ref(false);
 
+const expresionCron = ref('');
+const guardandoExpresion = ref(false);
+const persistentCron = ref(false);
+const guardadoOk = ref(false);
+
 // Datos de los modales
 const formDataView = ref({});
 const formDataEdit = ref({});
@@ -302,6 +307,15 @@ const cumplimientoGeneral = computed(() => {
 
 // ¿El usuario logueado es administrador?
 const esAdmin = computed(() => usuarioStore.usuario?.rol === 'admin');
+
+// Feedback visual SIN parser: solo detecta campos llenos/vacíos
+const CRON_LABELS = ['Minuto', 'Hora', 'Día', 'Mes', 'Día-Sem'];
+const cronTokens = computed(() => {
+    const p = (expresionCron.value || '').trim().split(/\s+/).filter(Boolean);
+    return CRON_LABELS.map((label, i) => ({ label, raw: p[i] ?? '', filled: !!p[i] }));
+});
+const cronValido = computed(() => cronTokens.value.every(t => t.filled));
+const cronCompletos = computed(() => cronTokens.value.filter(t => t.filled).length);
 
 // 8. HELPERS PUROS (sin efectos)
 const formatearRazonSocial = (texto = '') => {
@@ -668,6 +682,32 @@ async function ejecutarBusqueda() {
     }
 }
 
+async function cargarConfigCron() {
+    try {
+        const { data } = await apiClient.get('api/proveedor/admin/cron-config');
+        if (data.success) expresionCron.value = data.expresion;
+    } catch (error) {
+        console.error('Error al cargar config cron:', error);
+    }
+}
+
+async function guardarExpresion() {
+    if (guardandoExpresion.value || !cronValido.value) return;
+    guardandoExpresion.value = true;
+    try {
+        await apiClient.put('api/proveedor/admin/cron-config', {
+            expresion: expresionCron.value
+        })
+        exitoNotify('Expresión guardada correctamente');
+        guardadoOk.value = true;
+        setTimeout(() => { guardadoOk.value = false; }, 1800)
+    } catch (error) {
+        errorNotify(error.response?.data?.msg || 'Error al guardar');
+    } finally {
+        guardandoExpresion.value = false;
+    }
+}
+
 // 12. RESUMEN + POLLING
 async function cargarResumen() {
     if (cargandoResumen.value) return;
@@ -735,7 +775,6 @@ watch([textBusqueda, modelTipo, modelEstado], () => {
 });
 
 // 14. CICLO DE VIDA
-
 onMounted(() => {
     console.log('Usuario en store:', usuarioStore.usuario);
     console.log('Rol:', usuarioStore.usuario?.rol);
@@ -745,6 +784,8 @@ onMounted(() => {
     cargarResumen();
     iniciarPolling();
     document.addEventListener('visibilitychange', manejarVisibilidad);
+
+    cargarConfigCron();
 });
 
 onUnmounted(() => {
@@ -792,6 +833,16 @@ onUnmounted(() => {
                                 <q-item-section>
                                     <q-item-label class="text-weight-medium">Crear usuario</q-item-label>
                                     <q-item-label caption>Dar de alta un nuevo acceso al sistema</q-item-label>
+                                </q-item-section>
+                            </q-item>
+
+                            <q-item clickable v-close-popup @click="persistentCron = true" class="menu-admin__item">
+                                <q-item-section avatar>
+                                    <q-icon name="schedule" color="secondary" />
+                                </q-item-section>
+                                <q-item-section>
+                                    <q-item-label class="text-weight-medium">Automatización</q-item-label>
+                                    <q-item-label caption>Programar la actualización masiva de proveedores</q-item-label>
                                 </q-item-section>
                             </q-item>
 
@@ -1643,6 +1694,95 @@ onUnmounted(() => {
                 </q-dialog>
             </section>
 
+            <!-- Dialogo: Automatización (CRON) -->
+            <q-dialog
+                v-model="persistentCron"
+                persistent
+                transition-show="scale"
+                transition-hide="scale"
+                :maximized="$q.screen.lt.sm"
+            >
+                <q-card class="cron-dialog">
+                    <div class="cron-dialog__glow" aria-hidden="true"></div>
+
+                    <!-- Franja de marca -->
+                    <div class="cron-dialog__franja">
+                        <div class="cron-dialog__franja-left">
+                            <div class="cron-dialog__icon">
+                                <q-icon name="schedule" />
+                                <span class="cron-dialog__pulse" aria-hidden="true"></span>
+                            </div>
+                            <div class="cron-dialog__titles">
+                                <div class="cron-dialog__eyebrow">Automatización</div>
+                                <div class="cron-dialog__title">Actualización masiva programada</div>
+                            </div>
+                        </div>
+                        <div class="cron-dialog__franja-right">
+                            <div class="cron-status" :class="cronValido ? 'is-ok' : 'is-bad'">
+                                <q-icon :name="cronValido ? 'check_circle' : 'radio_button_unchecked'" />
+                                <span class="gt-xs">{{ cronValido ? 'Completa' : `${cronCompletos}/5 campos` }}</span>
+                            </div>
+                            <q-btn flat round dense icon="close" color="white" v-close-popup />
+                        </div>
+                    </div>
+
+                    <p class="cron-dialog__sub">
+                        Define cada cuánto el sistema enviará, sin intervención manual, las solicitudes de actualización a los proveedores.
+                    </p>
+
+                    <q-card-section class="cron-body">
+                        <div class="cron-editor">
+                            <label class="cron-editor__label">Expresión cron</label>
+                            <q-input v-model="expresionCron" filled dense class="cron-editor__input" :class="{ 'is-invalid': expresionCron.trim() && !cronValido }" placeholder="0 8 1 5 *" hint="min · hora · día · mes · día-sem">
+                                <template #prepend><q-icon name="terminal" /></template>
+                            </q-input>
+
+                            <!-- Stepper: 5 puntos que se encienden al completar -->
+                             <div class="cron-steps" aria-hidden="true">
+                                <template v-for="(seg, i) in cronTokens" :key="i">
+                                    <span class="cron-step" :class="{ 'is-on': seg.filled }"></span>
+                                    <span v-if="i < cronTokens.length - 1" class="cron-step__line" :class="{ 'is-on': seg.filled && cronTokens[i + 1].filled }"></span>
+                                </template>
+                             </div>
+                        </div>
+
+                        <div class="cron-read">
+                            <div class="cron-tokens">
+                                <div v-for="(seg, i) in cronTokens" :key="i" class="cron-token" :class="seg.filled ? 'is-on' : 'is empty'">
+                                    <span class="cron-token__raw">{{ seg.raw || '' }}</span>
+                                    <span class="cron-token__label">{{ seg.label }}</span>
+                                </div>
+                            </div>
+                            <p class="cron-hint-line">
+                                <q-icon name="info" />
+                                <span v-if="cronValido">Los 5 campos están definidos. Guarda para aplicar.</span>
+                                <span v-else>Completa los 5 campos separados por espacio para activar el guardado.</span>
+                            </p>
+                        </div>
+                    </q-card-section>
+
+                    <q-card-section class="cron-dialog__foot">
+                        <div class="cron-examples">
+                            <span class="cron-examples__k">Probar:</span>
+                            <button type="button" class="cron-chip" @click="expresionCron = '0 8 1 5 *'">1 de mayo · 08:00</button>
+                            <button type="button" class="cron-chip" @click="expresionCron = '0 9 * * 1'">Lunes · 09:00</button>
+                            <button type="button" class="cron-chip" @click="expresionCron = '30 7 1 * *'">Día 1 · 07:30</button>
+                            <button type="button" class="cron-chip" @click="expresionCron = '0 8 * * *'">Diario · 08:00</button>
+                        </div>
+                        <q-btn 
+                            unelevated 
+                            no-caps 
+                            class="cron-save" 
+                            :class="{ 'is-saved': guardadoOk }"
+                            :loading="guardandoExpresion"
+                            :disable="guardandoExpresion || !cronValido"
+                            :icon="guardadoOk ? 'check' : 'save'"
+                            :label="guardandoExpresion ? 'Guardando...' : guardadoOk ? 'Guardado' : 'Guardar cambios'"
+                            @click="guardarExpresion" />
+                    </q-card-section>
+                </q-card>
+            </q-dialog>
+
             <!-- Dialogo de confirmación global -->
             <ConfirmDialog 
                 :model-value="confirmOpen"
@@ -1778,6 +1918,329 @@ $verde-oscuro: #142808;
 .contenido {
     margin: 0px auto;
     width: 95%;
+}
+
+/* DIALOGO DE AUTOMATIZACION */
+.cron-dialog {
+    position: relative;
+    width: 100%;
+    max-width: 740px;
+    border-radius: 22px;
+    overflow: hidden;
+    border: 1px solid $verde-claro;
+    box-shadow: 0 30px 80px rgba(20, 40, 8, 0.30);
+}
+.cron-dialog__glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: 
+        radial-gradient(460px 240px at 8% -8%, rgba(111, 195, 61, 0.16), transparent 70%),
+        radial-gradient(420px 260px at 100% 0%, rgba(52, 84, 209, 0.12), transparent 70%);
+}
+.cron-dialog > *:not(.cron-dialog__glow) {
+    position: relative;
+    z-index: 1;
+}
+
+.cron-dialog__franja {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 20px 22px;
+    background: linear-gradient(125deg, $verde 0%, #4f8f3a 50%, $azul 130%);
+}
+
+.cron-dialog__franja-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.cron-dialog__icon {
+    position: relative;
+    flex: 0 0 auto;
+    width: 50px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    .q-icon {
+        font-size: 28px;
+    }
+}
+
+.cron-dialog__pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5);
+    animation: cron-pulse 2.6s ease-out infinite;
+}
+.cron-dialog__eyebrow {
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: #eafbe0;
+}
+.cron-dialog__title {
+    font-size: 1.3rem;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+    margin-top: 2px;
+}
+.cron-dialog__franja-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+}
+.cron-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.74rem;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    transition: all 0.25s ease;
+    &.is-ok {
+        background: rgba(255, 255, 255, .18);
+        color: #fff;
+        border-color: rgba(255, 255, 255, .45);
+    }
+    &.is-bad {
+        background: rgba(255, 255, 255, .10);
+        color: #eafbe0;
+        border-color: rgba(255, 255, 255, .30);
+    }
+}
+.cron-dialog__sub {
+    margin: 0;
+    padding: 16px 26px 0;
+    color: #5a6b50;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.cron-body {
+    display: grid;
+    grid-template-columns: minmax(200px, 0.85fr) 1.3fr;
+    gap: 20px;
+    padding-top: 18px !important;
+}
+.cron-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.cron-editor__label {
+    letter-spacing: 0.4px;
+    color: $verde-oscuro;
+}
+.cron-editor__input {
+    :deep(.q-field__control) {
+        border-radius: 12px;
+    }
+    :depp(input) {
+        font-size: 1.05rem;
+        letter-spacing: 1px;
+        color: $verde-oscuro;
+    }
+    &.is-invalid :deep(.qfield__control) {
+        box-shadow: 0 0 0 2px rgba(198, 40, 40, .45);
+    }
+}
+
+/* Stepper de 5 pasos */
+.cron-steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 2px 4px;
+}
+.cron-step {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    background: #d8e3cf;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px #d8e3cf;
+    transition: all 0.3s ease;
+    &.is-on {
+        background: $verde;
+        box-shadow: 0 0 0 1px $verde, 0 0 10px rgba(111, 195, 61, .6);
+        transform: scale(1.15);
+    }
+}
+.cron-step__line {
+    flex: 1 1 auto;
+    height: 2px;
+    background: #d8e3cf;
+    transition: background 0.3s ease;
+    &.is-on {
+        background: $verde;
+    }
+}
+
+.cron-read {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: #f7fbf4;
+    border: 1px solid $verde-claro;
+    border-radius: 16px;
+    padding: 16px;
+}
+.cron-tokens {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+.cron-token {
+    flex: 1 1 0;
+    min-width: 52px;
+    text-align: center;
+    border-radius: 12px;
+    padding: 10px 5px;
+    border: 1.5px dashed #cdd9c4;
+    background: #fff;
+    transition: transform 0.18s ease, border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+    &:hover {
+        transform: translateY(-3px);
+    }
+    &.is-empty {
+        opacity: 0.55;
+    }
+}
+.cron-token__raw {
+    display: block;
+    color: #9aa890;
+    word-break: break-all;
+    .is-on & {
+        color: $verde-oscuro;
+    }
+}
+.cron-token__label {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #8a9a80;
+}
+.cron-hint-line {
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+  margin: 0;
+  font-size: 0.82rem; 
+  color: #6b7a60; 
+  line-height: 1.5;
+  .q-icon { 
+        color: $azul; 
+        flex: 0 0 auto; 
+    }
+}
+
+.cron-dialog__foot {
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  gap: 14px; 
+  flex-wrap: wrap;
+  padding-top: 6px !important; 
+  border-top: 1px dashed $verde-claro; 
+  margin-top: 4px;
+}
+.cron-examples { 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    flex-wrap: wrap; 
+}
+.cron-examples__k { 
+    font-size: 0.72rem; 
+    font-weight: 700; 
+    letter-spacing: 0.5px; 
+    text-transform: uppercase; 
+    color: #8a9a80; 
+}
+.cron-chip {
+  cursor: pointer; 
+  font: inherit; 
+  font-size: 0.76rem; 
+  font-weight: 600;
+  color: $verde-oscuro; 
+  background: #fff; border: 1px solid $verde-claro;
+  border-radius: 999px; 
+  padding: 6px 13px; 
+  transition: all 0.18s ease;
+  &:hover { 
+        background: $verde; 
+        color: $verde-oscuro; 
+        border-color: $verde; 
+        transform: translateY(-2px); 
+        box-shadow: 0 6px 14px rgba(111,195,61,.25); 
+    }
+  &:active { 
+        transform: translateY(0); 
+    }
+}
+.cron-save {
+  background: $azul !important; 
+  color: #fff !important; 
+  font-weight: 700;
+  border-radius: 12px; 
+  padding: 9px 22px; 
+  letter-spacing: 0.2px;
+  box-shadow: 0 6px 16px rgba(52, 84, 209, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.25s ease;
+  &:hover:not(.q-btn--disable) { 
+        transform: translateY(-2px); 
+        box-shadow: 0 10px 22px rgba(52,84,209,.34); 
+    }
+  &:active:not(.q-btn--disable) { 
+        transform: translateY(0); 
+    }
+  &.is-saved { 
+        background: $verde !important; 
+        color: $verde-oscuro !important; 
+        box-shadow: 0 6px 16px rgba(111,195,61,.34); 
+    }
+}
+
+@keyframes cron-pulse {
+  0%   { 
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.45); 
+    }
+  70%  { 
+        box-shadow: 0 0 0 12px rgba(255, 255, 255, 0); 
+    }
+  100% { 
+        box-shadow: 0 0 0 12px rgba(255, 255, 255, 0); 
+    }
+}
+
+@media (max-width: 640px) {
+  .cron-body { 
+        grid-template-columns: 1fr; 
+    }
+  .cron-dialog__foot { 
+        flex-direction: column; 
+        align-items: stretch; 
+}
+  .cron-save { 
+        width: 100%; 
+    }
 }
 
 /* ESTADISTICAS */

@@ -3,7 +3,7 @@ import { useUsuarioStore } from "../stores/usuario.js"
 import { router } from "../routes/router.js";
 
 const apiClient = axios.create({
-    baseURL: /* 'https://modulo-proveedores-backend.vercel.app/'  || */   'http://localhost:3001',
+    baseURL: 'https://inst-sistemasproveedores-ajcue3g5hkh5dpd2.canadacentral-01.azurewebsites.net/'  /* ||   'http://localhost:3001' */,
     headers: {
         'Content-Type': 'application/json'
     }
