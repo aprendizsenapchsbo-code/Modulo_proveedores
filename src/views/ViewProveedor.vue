@@ -131,10 +131,8 @@ const configIdentificacion = computed(() => {
         placeholder: esColombia ? 'Ej: 900.123.456-7' : 'Ej: EIN, RFC, VAT ID',
         rules: [
             val => !!val || 'Este campo es obligatorio',
-            // Solo validamos formato colombiano si el país es Colombia
             val => {
                 if (!esColombia) return true; 
-                // Regex simple para NIT colombiano (puedes ajustarla según tu necesidad)
                 const nitRegex = /^\d{1,10}$/; 
                 return nitRegex.test(val) || 'El NIT debe contener solo números';
             }
@@ -144,12 +142,10 @@ const configIdentificacion = computed(() => {
 
 // 11. HELPERS DE DOCUMENTOS
 function obtenerTiposDocumentosRequeridos(tipoContribuyente, pais) {
-    // Normalizar: convertir a minusculas y eliminar espacios
     const paisNormalizado = pais?.trim().toLowerCase() || '';
     const esColombia = paisNormalizado === 'colombia';
 
     if (!esColombia) {
-        // Documentos base comunes para ambos tipos
         const documentosBase = [
             'IDENTIFICACION TRIBUTARIA DEL PAIS ORIGEN (EIN, RFC, VAT ID)',
             'CERTIFICACION BANCARIA (Con SWIFT / BIC / IBAN)',
@@ -192,21 +188,16 @@ function obtenerTiposDocumentosRequeridos(tipoContribuyente, pais) {
     return [];
 }
 
-// Saber si el documento es "2 CERTIFICADOS COMERCIALES"
 const esCertificadosComerciales = (tipo) => {
     return (tipo || '').toUpperCase().includes('2 CERTIFICADOS COMERCIALES')
 }
 
-// Obtener el máximo de archivos permitido por tipo de documento
 const obtenerMaxArchivos = (tipo) => {
     return esCertificadosComerciales(tipo) ? 2 : 1
 }
 
-// Función auxiliar para formatear los bytes a megabytes
 const formatearTamanoArchivo = (archivos) => {
     if (!archivos || archivos.length === 0) return '';
-
-    // Sumar el tamaño de todos los archivos seleccionados
     const totalBytes = archivos.reduce((acc, file) => acc + (file.size || 0), 0);
     const mb = (totalBytes / (1024 * 1024)).toFixed(2);
 
@@ -215,7 +206,6 @@ const formatearTamanoArchivo = (archivos) => {
         : `${archivos.length} archivos (${mb} MB)`;
 }
 
-// Validar archivos seleccionados
 const validarArchivos = (archivos, doc) => {
     if (!archivos) {
         doc.archivo = [];
@@ -231,7 +221,6 @@ const validarArchivos = (archivos, doc) => {
 
     const maxArchivos = obtenerMaxArchivos(doc.tipo)
 
-    // Validar que sean PDF
     const soloPdf = files.filter(
         (file) => 
             file.type === 'application/pdf' ||
@@ -242,14 +231,12 @@ const validarArchivos = (archivos, doc) => {
         errorNotify('Solo se permiten archivos PDF.')
     }
 
-    // Validar peso máximo (10 MB)
     const porPeso = soloPdf.filter((file) => file.size <= MAX_FILE_SIZE)
 
     if (porPeso.length !== soloPdf.length) {
         errorNotify(`Uno o más archivos superan el tamaño máximo de 10 MB.`)
     }
 
-    // Validar cantidad máxima
     const seleccionFinal = porPeso.slice(0, maxArchivos)
 
     if (porPeso.length > maxArchivos) {
@@ -263,20 +250,48 @@ const validarArchivos = (archivos, doc) => {
     doc.archivo = seleccionFinal
 }
 
-// Validar exactamente que "2 CERTIFICADOS COMERCIALES" sean dos archivos
+const asignarCertificado = (archivo, doc, index) => {
+    const arr = [
+        doc.archivo?.[0] ?? null,
+        doc.archivo?.[1] ?? null
+    ];
+
+    if (!archivo) {
+        arr[index] = null;
+    } else {
+        const file = Array.isArray(archivo) ? archivo[0] : archivo;
+
+        const esPdf = file?.type === 'application/pdf' || file?.name?.toLowerCase().endsWith('.pdf');
+        if (!esPdf) {
+            errorNotify('Solo se permiten archivos PDF.');
+            arr[index] = null;
+            doc.archivo = arr.filter(Boolean);
+            return;
+        }
+
+        if (file?.size > MAX_FILE_SIZE) {
+            errorNotify('El archivo supera el tamaño máximo de 10 MB.');
+            arr[index] = null;
+            doc.archivo = arr.filter(Boolean);
+            return;
+        }
+
+        arr[index] = file;
+    }
+
+    doc.archivo = arr.filter(Boolean);
+}
+
 const validarDocumentosAntesDeEnviar = () => {
     for (const doc of documentosRequeridos.value) {
         const cantidad = doc.archivo?.length || 0
-        const maxArchivos = obtenerMaxArchivos(doc.tipo)
 
-        // Validar que todos los documentos requeridos tengan archivo
-        if (cantidad === 0) {
+        if (cantidad === 0 && modo.value === 'preregistro') {
             errorNotify(`Debe cargar el documento "${doc.tipo}".`);
             return false;
         }
 
-        // Validar que los certificados comerciales sean exactamente 2
-        if (esCertificadosComerciales(doc.tipo) && cantidad !== 2) {
+        if (esCertificadosComerciales(doc.tipo) && cantidad > 0 && cantidad !== 2) {
             errorNotify(`El documento "${doc.tipo}" debe tener exactamente 2 archivos.`);
             return false;
         }
@@ -285,26 +300,25 @@ const validarDocumentosAntesDeEnviar = () => {
     return true;
 }
 
-// 12. CARGA DIRECTA A SHAREPOINT
+// 12. CARGA DIRECTA A SHAREPOINT (COMENTADO PARA MODO LOCAL)
+/*
 async function solicitarUrlsCarga(token, archivosInfo, razonSocial) {
-    // archivosInfo: [{ nombreOriginal, tipo }]
     const response = await apiClient.post(`api/proveedor/solicitar-urls-carga/${token}`, {
         archivos: archivosInfo,
         razonSocial: razonSocial
     });
-    return response.data;  // { success, urls: [{ nombre, nombreOriginal, tipo, uploadUrl }] }
+    return response.data;
 }
 
 async function subirArchivoUrl(uploadUrl, file) {
     const fileSize = file.size;
     const range = `bytes 0-${fileSize-1}/${fileSize}`;
-    // Usamos fetch porque axios podría tener problemas con streams en navegador
     const response = await fetch(uploadUrl, {
         method: 'PUT',
         headers: { 
             'Content-Type': 'application/octet-stream',
             'Content-Range': range
-         },
+        },
         body: file
     });
     if (!response.ok) {
@@ -314,28 +328,24 @@ async function subirArchivoUrl(uploadUrl, file) {
     return true;
 }
 
-// Subir varios archivos en secuencia
 async function subirArchivos(urls, archivosPorIndice) {
     const resultados = [];
     for (let i = 0; i < urls.length; i++) {
         const { uploadUrl, nombre, tipo, nombreOriginal } = urls[i];
         const file = archivosPorIndice[i];
-        console.log(`Subiendo archivo ${i}: ${nombreOriginal} (${file.size} bytes) a ${uploadUrl}`);
         try {
             await subirArchivoUrl(uploadUrl, file);
-            console.log(`Subida exitosa: ${nombreOriginal}`);
             resultados.push({ nombre, tipo, nombreOriginal });
         } catch (err) {
             throw new Error(`Fallo al subir "${nombreOriginal}": ${err.message}`);
-            throw err;
         }
     }
     return resultados;
 }
+*/
 
 // 13. PRECARGA Y DOCUMENTOS OBLIGATORIOS
 function precargarDatos(data) {
-    // Información general
     pais.value = data.Pais || '';
     nit.value = data.NIT || '';
     dv.value = data.DV || '';
@@ -343,38 +353,29 @@ function precargarDatos(data) {
     direccionNotificacion.value = data.DireccionNotificacion || '';
     telefono.value = data.Telefono || '';
     ciudad.value = data.Ciudad || '';
-    // Información del Representante Legal
     nombreRepresentante.value = data.NombreRepresentante || '';
     tipoDocumentoRepresentante.value = data.TipoDocumentoRepresentante || '';
     numeroIdentificacion.value = data.NumeroIdentificacion || '';
     telefonoRepresentante.value = data.TelefonoRepresentante || '';
     correoElectronicoRepresentante.value = data.CorreoElectronicoRepresentante || '';
-    // Información representante comercial
     nombreRepresentanteComercial.value = data.NombreRepresentanteComercial || '';
     cargoRepresentanteComercial.value = data.CargoRepresentanteComercial || '';
     telefonoRepresentanteComercial.value = data.TelefonoRepresentanteComercial || '';
     correoElectronicoRepresentanteComercial.value = data.CorreoElectronicoRepresentanteComercial || '';
-    // Información del responsable de facturación
     nombresApellidosResponsable.value = data.NombresApellidosResponsable || '';
     cargoResponsableFacturacion.value = data.CargoResponsableFacturacion || '';
     correoElectronicoResponsable.value = data.CorreoElectronicoResponsable || '';
-    // Otra información
     tipoContribuyente.value = data.TipoContribuyente || '';
     tipoProveedor.value = data.TipoProveedor || '';
     otroTipoProveedor.value = data.OtroTipoProveedor || '';
-    // Documentos
+    
     if (data.Documentos && Array.isArray(data.Documentos)) {
         documentosExistentes.value = data.Documentos;
     }
 
-    // Obtener tipos de documentos requeridos según el tipo de contribuyente
     const tiposRequeridos = obtenerTiposDocumentosRequeridos(data.TipoContribuyente, data.Pais);
-
-    // Obtener documentos existentes del proveedor
     const docsExistentes = data.Documentos || [];
-    console.log('Documentos existente:', docsExistentes);
 
-    // Construir documentosRequeridos con la estructura esperada
     documentosRequeridos.value = tiposRequeridos.map(tipo => {
         const existente = docsExistentes.find(doc => doc.tipo === tipo);
         return {
@@ -388,61 +389,26 @@ function precargarDatos(data) {
 }
 
 function obtenerDocumentosObligatorios() {
-    // Usar la función principal que considera el país
     const tiposRequeridos = obtenerTiposDocumentosRequeridos(tipoContribuyente.value, pais.value);
 
-    // Crear estructura con estado por documento
     documentosRequeridos.value = tiposRequeridos.map(tipo => ({
         tipo,
         archivo: [],
         url: null,
         subido: false
     }));
-    console.log('documentosRequeridos inicializado:', documentosRequeridos.value);
 }
 
 // 14. LIMPIEZA
-// Función para limpiar el campo "Otro" si cambian la selección
 const limpiarOtroSiCambia = (nuevoValor) => {
     if (nuevoValor !== 'Otro') {
         otroTipoProveedor.value = '';
     }
 };
 
-async function limpiarFormulario() {
-    pais.value = '';
-    nit.value = '';
-    razonSocial.value = '';
-    dv.value = '';
-    direccionNotificacion.value = '';
-    telefono.value = '';
-    ciudad.value = '';
-    nombreRepresentante.value = '';
-    tipoDocumentoRepresentante.value = '';
-    numeroIdentificacion.value = '';
-    telefonoRepresentante.value = '';
-    correoElectronicoRepresentante.value = '';
-    nombreRepresentanteComercial.value = '';
-    cargoRepresentanteComercial.value = '';
-    telefonoRepresentanteComercial.value = '';
-    correoElectronicoRepresentanteComercial.value = '';
-    nombresApellidosResponsable.value = '';
-    cargoResponsableFacturacion.value = '';
-    correoElectronicoResponsable.value = '';
-    tipoContribuyente.value = '';
-    tipoProveedor.value = '';
-    autorizaDatosPersonales.value = false;
-    autorizaConflictos.value = false;
-    firmaAceptadaDatosPersonales.value = false;
-    firmaAceptadaConflictos.value = false;
-    dialogConflictosAbierto.value = false;
-    dialogDatosAbierto.value = false;
-    documentosRequeridos.value = [];
-}
-
 // 15. ACCION PRINCIPAL - Guardar registro
 async function crearRegistro() {
-    if (loading.value) return; // Evitar envíos múltiples
+    if (loading.value) return; 
     loading.value = true;
     intentoEnviar.value = true;
 
@@ -458,35 +424,33 @@ async function crearRegistro() {
         return;
     }
 
-    // Validaciones comunes
     if (!nit.value || !razonSocial.value || !direccionNotificacion.value) {
         errorNotify('Por favor complete todos los campos obligatorios');
         loading.value = false;
         return;
     }
 
-    // Validación solo para pre-registro
     if (modo.value === 'preregistro') {
         if (!autorizaDatosPersonales.value || !autorizaConflictos.value) {
             errorNotify('Debe leer y aceptar ambas autorizaciones para continuar con el registro.');
-            // Abrir el diálogo que falta
             if (!autorizaDatosPersonales.value) dialogDatos.value = true;
             else if (!autorizaConflictos.value) dialogConflictos.value = true;
             loading.value = false;
             return;
         }
-    };
-    // Construir dos arrays paralelos: archivos (File) y metadatos (tipo, nombreOriginal)
-    const archivosParaSubir = [];  // File objects
-    const archivosInfo = [];  // { nombreOriginal, tipo }
+    }
 
-    // a) Documentos requeridos
+    /*=====================================================================
+       FLUIO SHAREPOINT ORIGINAL (COMENTADO PARA MODO LOCAL)
+       ===================================================================== */
+    const archivosParaSubir = [];  
+    const archivosInfo = [];  
+
     for (const doc of documentosRequeridos.value) {
         if (doc.archivo && doc.archivo.length > 0) {
             for (const file of doc.archivo) {
-                // Validar tamaño individual 
                 if (file.size > MAX_FILE_SIZE) {
-                    errorNotify(`El archivo "${file.name}" supera el tamaño máximo de 5 MB`);
+                    errorNotify(`El archivo "${file.name}" supera el tamaño máximo de 10 MB`);
                     loading.value = false;
                     return;
                 }
@@ -496,31 +460,26 @@ async function crearRegistro() {
         }
     }
 
-    // PASO 1: Obtener URLs de carga
     let urlsCarga = [];
     try {
         const resp = await solicitarUrlsCarga(token, archivosInfo, razonSocial.value.trim());
-        urlsCarga = resp.urls;  // [{ nombre, nombreOriginal, tipo, uploadUrl }]
+        urlsCarga = resp.urls;  
     } catch (error) {
-        console.error('Error al solicitar URLs de carga:', error);
         errorNotify(error.response?.data?.msg || 'Error al preparar la carga de documentos');
         loading.value = false;
         return;
     }
 
-    // PASO 2: Subir archivos directamente a SharePoint
     let archivosSubidos = [];
     try {
         archivosSubidos = await subirArchivos(urlsCarga, archivosParaSubir);
     } catch (error) {
-        console.error('Error al subir archivos:', error);
         errorNotify(error.message || 'Error al subir los documentos');
         loading.value = false;
         return;
     }
 
-    // PASO 3: Enviar metadatos y referencia al backend
-    const datosProveedor = {
+    const bodyFinalSharePoint = {
         Pais: pais.value.trim(),
         NIT: nit.value.trim(),
         DV: dv.value,
@@ -545,29 +504,90 @@ async function crearRegistro() {
         OtroTipoProveedor: otroTipoProveedor.value.trim(),
         AutorizaDatosPersonales: modo.value === 'preregistro' ? autorizaDatosPersonales.value : true,
         AutorizaConflictos: modo.value === 'preregistro' ? autorizaConflictos.value : true,
+        archivosSubidos  
     };
 
-    const bodyFinal = {
-        ...datosProveedor,
-        archivosSubidos  // contiene [{ nombre, tipo, nombreOriginal }]
-    };
+    /* =====================================================================
+       NUEVO FLUJO PARA MODO LOCAL (MONGODB + CLOUDINARY + FORMDATA)
+       ===================================================================== */
+    /* const formData = new FormData();
+
+    const datosProveedor = {
+        Pais: pais.value.trim(),
+        NIT: nit.value.trim(),
+        DV: dv.value,
+        RazonSocial: razonSocial.value.trim(),
+        DireccionNotificacion: direccionNotificacion.value.trim(),
+        Telefono: telefono.value.trim(),
+        Ciudad: ciudad.value.trim(),
+        NombreRepresentante: nombreRepresentante.value.trim(),
+        TipoDocumentoRepresentante: tipoDocumentoRepresentante.value.trim(),
+        NumeroIdentificacion: numeroIdentificacion.value.trim(),
+        TelefonoRepresentante: telefonoRepresentante.value.trim(),
+        CorreoElectronicoRepresentante: correoElectronicoRepresentante.value.trim(),
+        NombreRepresentanteComercial: nombreRepresentanteComercial.value.trim(),
+        CargoRepresentanteComercial: cargoRepresentanteComercial.value.trim(),
+        TelefonoRepresentanteComercial: telefonoRepresentanteComercial.value.trim(),
+        CorreoElectronicoRepresentanteComercial: correoElectronicoRepresentanteComercial.value.trim(),
+        NombresApellidosResponsable: nombresApellidosResponsable.value.trim(),
+        CargoResponsableFacturacion: cargoResponsableFacturacion.value.trim(),
+        CorreoElectronicoResponsable: correoElectronicoResponsable.value.trim(),
+        TipoContribuyente: tipoContribuyente.value,
+        TipoProveedor: tipoProveedor.value,
+        OtroTipoProveedor: otroTipoProveedor.value?.trim(),
+        AutorizaDatosPersonales: modo.value === 'preregistro' ? autorizaDatosPersonales.value : true,
+        AutorizaConflictos: modo.value === 'preregistro' ? autorizaConflictos.value : true,
+    }; 
+
+    formData.append('datosProveedor', JSON.stringify(datosProveedor));
+
+    const tiposDocumentosArray = [];
+    for (const doc of documentosRequeridos.value) {
+        if (doc.archivo && doc.archivo.length > 0) {
+            for (const file of doc.archivo) {
+                if (file.size > MAX_FILE_SIZE) {
+                    errorNotify(`El archivo "${file.name}" supera el tamaño máximo de 10 MB`);
+                    loading.value = false;
+                    return;
+                }
+                formData.append('documentos', file);
+                tiposDocumentosArray.push(doc.tipo);
+            }
+        }
+    }
+    formData.append('tiposDocumentos', JSON.stringify(tiposDocumentosArray));*/
 
     try {
         let response;
         if (modo.value === 'preregistro') {
-            // Enviar la petición con multipart/form-data
-            response = await apiClient.post(
-                `api/proveedor/registro/completar-registro-carga-directa/${token}`, bodyFinal);
+            /* // LLAMADA ORIGINAL SHAREPOINT:*/
+            response = await apiClient.post(`api/proveedor/completar-registro-carga-directa/${token}`, bodyFinalSharePoint); 
+
+            // LLAMADA LOCAL MONGODB + CLOUDINARY:
+            /* response = await apiClient.put(
+                `api/pruebas/proveedores/completar-registro/${token}`,
+                formData,
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+            ); */
+
             if (response.data.success) {
-                aprobacionPreRegistroStore.setRazonSocialProveedor(response.data.RazonSocial);
-                aprobacionPreRegistroStore.setPreRegistroAprobar(response.data);
-                exitoNotify('Registro creado exitosamente')
-                router.push('/registro-exitoso')
+                const resData = response.data.data || response.data;
+                aprobacionPreRegistroStore.setRazonSocialProveedor(resData.RazonSocial);
+                aprobacionPreRegistroStore.setPreRegistroAprobar(resData);
+                exitoNotify('Registro creado exitosamente');
+                router.push('/registro-exitoso');
             }
         } else {
-            // Actualización:
-            response = await apiClient.put(`api/proveedor/${token}/actualizar-datos-carga-directa`, bodyFinal);
-    
+            /* // LLAMADA ORIGINAL SHAREPOINT:*/
+            response = await apiClient.put(`api/proveedor/${token}/actualizar-datos-carga-directa`, bodyFinalSharePoint); 
+
+            // LLAMADA LOCAL MONGODB + CLOUDINARY:
+            /* response = await apiClient.put(
+                `api/pruebas/proveedores/actualizar-datos/${token}`,
+                formData,
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+            ); */
+
             if (response.data.success) {
                 exitoNotify('Datos actualizados exitosamente');
                 router.push('/registro-exitoso');
@@ -575,7 +595,6 @@ async function crearRegistro() {
         }
     } catch (error) {
         console.error('Error al guardar el registro', error);
-        // Manejo específico si el token expiró durante el proceso (401 o 403)
         if (error.response?.status === 401 || error.response?.status === 403) {
             errorNotify('El enlace de registro ha expirado o ya fue utilizado.');
         } else {
@@ -586,28 +605,25 @@ async function crearRegistro() {
     }
 }
 
-// 16. AUTORIZACIONES / DIALOGOS (Solo pre-registro)
+// 16. AUTORIZACIONES / DIALOGOS
 const manejarClickCheckbox = (val, tipo) => {
-    // Si el checkbox se desmarca, actualizar el estado correspondiente
     if (val === false) {
         if (tipo === 'datos') {
             autorizaDatosPersonales.value = false;
-            firmaAceptadaDatosPersonales.value = false; // Reiniciar la firma si se desmarca
+            firmaAceptadaDatosPersonales.value = false; 
         } else {
             autorizaConflictos.value = false;
-            firmaAceptadaConflictos.value = false; // Reiniciar la firma si se desmarca
+            firmaAceptadaConflictos.value = false; 
         }
         return;
     }
 
-    // Si el checkbox se marca, verificar si el diálogo ya ha sido abierto antes
     if (tipo === 'datos') {
         dialogDatos.value = true;
         errorNotify('Por favor lea y firme la autorización dentro del diálogo');
     } else {
         dialogConflictos.value = true;
         errorNotify('Por favor lea y firme la autorización dentro del diálogo');
-
     }
 };
 
@@ -631,7 +647,6 @@ const onDialogConflictosOpen = () => {
     })
 }
 
-// Función para aceptar explicitamente
 const aceptarYCerrarDatos = () => {
     if (!firmaAceptadaDatosPersonales.value) {
         errorNotify('Debe marcar la casilla de firma para aceptar');
@@ -653,11 +668,11 @@ const aceptarYCerrarConflictos = () => {
 }
 
 const onDialogDatosClose = () => {
-    dialogDatosAbierto.value = true; // Marcar que el diálogo de datos ha sido abierto
+    dialogDatosAbierto.value = true; 
 };
 
 const onDialogConflictosClose = () => {
-    dialogConflictosAbierto.value = true; // Marcar que el diálogo de conflictos ha sido abierto
+    dialogConflictosAbierto.value = true; 
 };
 
 // 17. WATCHERS
@@ -666,11 +681,10 @@ watch(tipoContribuyente, (nuevoValor) => {
         obtenerDocumentosObligatorios();
     } else if (modo.value === 'actualizacion' && nuevoValor) {
         const tiposRequeridos = obtenerTiposDocumentosRequeridos(nuevoValor, pais.value);
-
         const docsExistentes = documentosExistentes.value || [];
+
         documentosRequeridos.value = tiposRequeridos.map(tipo => {
             const existente = docsExistentes.find(doc => doc.tipo === tipo);
-            //Buscar también en documentosRequeridos actual (por si hay archivo subido)
             const actual = documentosRequeridos.value.find(d => d.tipo === tipo);
             return {
                 tipo: tipo,
@@ -683,7 +697,6 @@ watch(tipoContribuyente, (nuevoValor) => {
     }
 });
 
-// Watch para el cambio de pais también debe actualizar documentos
 watch(pais, (nuevoPais) => {
     if (tipoContribuyente.value && modo.value === 'preregistro') {
         obtenerDocumentosObligatorios();
@@ -706,18 +719,22 @@ watch(pais, (nuevoPais) => {
 
 // 18. CICLO DE VIDA
 onMounted(async () => {
-    // console.log('Token proveedor en store:', proveedorStore.tokenRegistro);
     const tokenFormUrl = route.params.token;
     if (!tokenFormUrl) {
         errorNotify('Enlace inválido');
         router.push('/token-invalido');
         return;
     }
-    // 1. Intentar obtener datos como token de actualización
+
+    // 1. Intentar como token de actualización
     try {
-        const response = await apiClient.get(`api/proveedor/actualizacion/${tokenFormUrl}`);
+        /* // ORIGINAL SHAREPOINT:*/
+        const response = await apiClient.get(`api/proveedor/actualizacion-token/${tokenFormUrl}`); 
+
+        // MODO LOCAL MONGODB:
+        /* const response = await apiClient.get(`api/pruebas/proveedores/actualizacion-token/${tokenFormUrl}`); */
+        
         if (response.data.success) {
-            // Modo actualización
             modo.value = 'actualizacion';
             tokenActualizacion.value = tokenFormUrl;
             precargarDatos(response.data.data);
@@ -727,27 +744,32 @@ onMounted(async () => {
             return;
         }
     } catch (error) {
-        // Si da 404 no es token de actualización
         if (error.response?.status !== 404) {
             errorNotify('Error al verificar el enlace');
             router.push('/token-invalido');
             return;
         }
     }
-    // 2. Si no es actualización, validar como token de pre-registro
+
+    // 2. Intentar como token de pre-registro
     try {
-        const response = await apiClient.get(`api/proveedor/verificar-token/${tokenFormUrl}`);
+        /* // ORIGINAL SHAREPOINT:*/
+        const response = await apiClient.get(`api/proveedor/verificar-token/${tokenFormUrl}`); 
+
+        // MODO LOCAL MONGODB:
+        /* const response = await apiClient.get(`api/pruebas/proveedores/verificar-token/${tokenFormUrl}`); */
+        
         if (response.data.success) {
             modo.value = 'preregistro';
             tokenValido.value = true;
             proveedorStore.setTokenRegistro(tokenFormUrl);
         } else {
             errorNotify(response.data.msg || 'El enlace ha expirado o ya fue utilizado');
-            router.push('/token-invalido')
+            router.push('/token-invalido');
         }
     } catch (error) {
         errorNotify(error.response?.data?.msg || 'Error al validar el enlace');
-        router.push('/token-invalido')
+        router.push('/token-invalido');
     } finally {
         cargando.value = false;
     }
@@ -927,46 +949,90 @@ onMounted(async () => {
                     <div class="q-pa-sm bg-blue-1 rounded-borders">
                         <p class="text-weight-bold text-primary q-mb-xs">Documentos requeridos</p>
 
+                        <q-banner rounded dense class="bg-amber-1 text-dark q-mb-md" style="border: 1px solid #ffd54f;">
+                            <template v-slot:avatar>
+                                <q-icon name="warning" color="warning" size="md" />
+                            </template>
+                            <span class="text-weight-bold">Nota importante:</span>
+                            No anexe archivos con clave (como extractos bancarios o certificados cifrados). Si su archivo tiene contraseña, por favor descárguelo o imprímalo en un nuevo PDF sin protección antes de adjuntarlo.
+                        </q-banner>
+                        
                         <div v-for="doc in documentosRequeridos" :key="doc.tipo" class="q-ml-md">
                             <p class="text-subtitle2 q-mb-xs">{{ doc.tipo }}</p>
 
-                            <q-file 
-                                v-model="doc.archivo" 
-                                @update:model-value="(val) => validarArchivos(val, doc)"
-                                multiple 
-                                outlined 
-                                dense 
-                                hide-upload-btn
-                                accept=".pdf,application/pdf"
-                                :label="doc.archivo && doc.archivo.length > 0 ? formatearTamanoArchivo(doc.archivo)
-                                : obtenerMaxArchivos(doc.tipo) === 2
-                                    ? 'Seleccione 2 archivos PDF'
-                                    : 'Seleccione 1 archivo PDF'
-                                "
-                                :color="doc.archivo && doc.archivo.length > 0 ? 'primary' : 'grey-5'">
-                                <template v-if="doc.archivo && doc.archivo.length > 0" #append>
-                                    <q-btn 
-                                        flat 
-                                        round 
-                                        dense 
-                                        icon="close" 
-                                        color="grey" 
-                                        @click="doc.archivo = []" />
-                                </template>
-                            </q-file>
+                            <!-- 2 CERTIFICADOS COMERCIALES: dos inputs separados -->
+                            <template v-if="esCertificadosComerciales(doc.tipo)">
+                                <!-- Certificado 1 -->
+                                <p class="text-caption text-grey-8 q-mb-xs">Certificado Comercial 1</p>
+                                <q-file
+                                    :model-value="doc.archivo?.[0] ?? null"
+                                    @update:model-value="(val) => asignarCertificado(val, doc, 0)"
+                                    outlined
+                                    dense
+                                    hide-upload-btn
+                                    accept=".pdf,application/pdf"
+                                    :label="doc.archivo?.[0] ? doc.archivo[0].name : 'Seleccione el 1er archivo PDF'"
+                                    :color="doc.archivo?.[0] ? 'primary' : 'grey-5'"
+                                    class="q-mb-sm"
+                                >
+                                    <template v-if="doc.archivo?.[0]" #append>
+                                        <q-btn flat round dense icon="close" color="grey"
+                                            @click="asignarCertificado(null, doc, 0)" />
+                                    </template>
+                                </q-file>
 
-                            <div class="text-caption text-grey-7 q-mb-lg">
-                                {{ 
-                                    obtenerMaxArchivos(doc.tipo) === 2
-                                        ? 'Este documento requiere 2 archivos.'
-                                        : 'Este documento requiere 1 archivo.'
-                                }}
-                            </div>
+                                <!-- Certificado 2 -->
+                                <p class="text-caption text-grey-8 q-mb-xs">Certificado Comercial 2</p>
+                                <q-file
+                                    :model-value="doc.archivo?.[1] ?? null"
+                                    @update:model-value="(val) => asignarCertificado(val, doc, 1)"
+                                    outlined
+                                    dense
+                                    hide-upload-btn
+                                    accept=".pdf,application/pdf"
+                                    :label="doc.archivo?.[1] ? doc.archivo[1].name : 'Seleccione el 2do archivo PDF'"
+                                    :color="doc.archivo?.[1] ? 'primary' : 'grey-5'"
+                                    class="q-mb-xs"
+                                >
+                                    <template v-if="doc.archivo?.[1]" #append>
+                                        <q-btn flat round dense icon="close" color="grey"
+                                            @click="asignarCertificado(null, doc, 1)" />
+                                    </template>
+                                </q-file>
 
-                            <!-- Validación visual por campo -->
-                            <span v-if="intentoEnviar && (!doc.archivo || doc.archivo.length === 0)" style="color: red; font-size: 12px;">
-                                Este documento es obligatorio.
-                            </span>
+                                <div class="text-caption text-grey-7 q-mb-lg">
+                                    Este documento requiere 2 archivos (uno por cada certificado).
+                                </div>
+                                <span v-if="intentoEnviar && doc.archivo.length < 2" style="color: red; font-size: 12px;">
+                                    Debe cargar los 2 certificados comerciales.
+                                </span>
+                            </template>
+
+                            <!-- Resto de documentos: input normal -->
+                            <template v-else>
+                                <q-file
+                                    v-model="doc.archivo"
+                                    @update:model-value="(val) => validarArchivos(val, doc)"
+                                    outlined
+                                    dense
+                                    hide-upload-btn
+                                    accept=".pdf,application/pdf"
+                                    :label="doc.archivo && doc.archivo.length > 0 ? formatearTamanoArchivo(doc.archivo) : 'Seleccione 1 archivo PDF'"
+                                    :color="doc.archivo && doc.archivo.length > 0 ? 'primary' : 'grey-5'"
+                                    >
+                                    <template v-if="doc.archivo && doc.archivo.length > 0" #append>
+                                        <q-btn flat round dense icon="close" color="grey"
+                                            @click="doc.archivo = []" />
+                                    </template>
+                                </q-file>
+
+                                <div class="text-caption text-grey-7 q-mb-lg">
+                                    Este documento requiere 1 archivo.
+                                </div>
+                                <span v-if="intentoEnviar && (!doc.archivo || doc.archivo.length === 0)" style="color: red; font-size: 12px;">
+                                    Este documento es obligatorio.
+                                </span>
+                            </template>
                         </div>
                     </div>
                 </div>
@@ -977,6 +1043,15 @@ onMounted(async () => {
                 <!--  SECCION DE DOCUMENTOS PARA ACTUALIZACION -->
                 <div v-if="modo === 'actualizacion' && tipoContribuyente" class="q-mt-md">
                     <p class="text-h6 text-secondary">Actualización de Documentos Obligatorios</p>
+
+                    <q-banner rounded dense class="bg-amber-1 text-dark q-mb-md" style="border: 1px solid #ffd54f;">
+                        <template v-slot:avatar>
+                            <q-icon name="warning" color="warning" size="md" />
+                        </template>
+                        <span class="text-weight-bold">Nota importante:</span>
+                        No anexe archivos con clave (como extractos bancarios o certificados cifrados). Si su archivo tiene contraseña, por favor descárguelo o imprímalo en un nuevo PDF sin protección antes de adjuntarlo.
+                    </q-banner>
+                    
                     <div class="q-pa-sm bg-blue-1 rounded-borders">
                         <p class="text-weight-bold text-primary q-mb-xs">Documentos requeridos</p>
                         <div v-for="doc in documentosRequeridos" :key="doc.tipo" class="q-ml-md">
@@ -994,44 +1069,86 @@ onMounted(async () => {
                                     class="q-ml-sm"
                                 />
                             </div>
-                            <!-- Input para subir nuevo archivo (cuando no existe o se quiera reemplazar) -->
+                             <!-- Input para subir nuevo archivo (cuando no existe o se quiera reemplazar) -->
                              <div v-if="!doc.urlExistente || doc.reemplazar">
-                                <q-file
-                                    v-model="doc.archivo"
-                                    @update:model-value="(val) => validarArchivos(val, doc)"
-                                    multiple
-                                    outlined
-                                    dense
-                                    hide-upload-btn
-                                    accept=".pdf,application/pdf"
-                                    :label="
-                                        doc.archivo && doc.archivo.length > 0
-                                            ? formatearTamanoArchivo(doc.archivo)
-                                            : obtenerMaxArchivos(doc.tipo) === 2
-                                                ? 'Seleccione 2 archivos PDF'
-                                                : 'Seleccione 1 archivo PDF'
-                                    "
-                                    class="q-mb-xs"
-                                >
-                                    <template v-if="doc.archivo && doc.archivo.length > 0" #append>
-                                        <q-btn
-                                            flat
-                                            round
-                                            dense
-                                            icon="close"
-                                            color="grey"
-                                            @click="doc.archivo = []"
-                                        />
-                                    </template>
-                                </q-file>
 
-                                <div class="text-caption text-grey-7 q-mb-lg">
-                                    {{ 
-                                        obtenerMaxArchivos(doc.tipo) === 2
-                                            ? 'Este documento requiere 2 archivos.'
-                                            : 'Este documento requiere 1 archivo.'
-                                    }}
-                                </div>
+                                <!-- 2 CERTIFICADOS COMERCIALES: dos inputs separados -->
+                                <template v-if="esCertificadosComerciales(doc.tipo)">
+                                    <!-- Certificado 1 -->
+                                    <p class="text-caption text-grey-8 q-mb-xs">Certificado Comercial 1</p>
+                                    <q-file
+                                        :model-value="doc.archivo?.[0] ?? null"
+                                        @update:model-value="(val) => asignarCertificado(val, doc, 0)"
+                                        outlined
+                                        dense
+                                        hide-upload-btn
+                                        accept=".pdf,application/pdf"
+                                        :label="doc.archivo?.[0] ? doc.archivo[0].name : 'Seleccione el 1er archivo PDF'"
+                                        :color="doc.archivo?.[0] ? 'primary' : 'grey-5'"
+                                        class="q-mb-sm"
+                                    >
+                                        <template v-if="doc.archivo?.[0]" #append>
+                                            <q-btn flat round dense icon="close" color="grey"
+                                                @click="asignarCertificado(null, doc, 0)" />
+                                        </template>
+                                    </q-file>
+
+                                    <!-- Certificado 2 -->
+                                    <p class="text-caption text-grey-8 q-mb-xs">Certificado Comercial 2</p>
+                                    <q-file
+                                        :model-value="doc.archivo?.[1] ?? null"
+                                        @update:model-value="(val) => asignarCertificado(val, doc, 1)"
+                                        outlined
+                                        dense
+                                        hide-upload-btn
+                                        accept=".pdf,application/pdf"
+                                        :label="doc.archivo?.[1] ? doc.archivo[1].name : 'Seleccione el 2do archivo PDF'"
+                                        :color="doc.archivo?.[1] ? 'primary' : 'grey-5'"
+                                        class="q-mb-xs"
+                                    >
+                                        <template v-if="doc.archivo?.[1]" #append>
+                                            <q-btn flat round dense icon="close" color="grey"
+                                                @click="asignarCertificado(null, doc, 1)" />
+                                        </template>
+                                    </q-file>
+
+                                    <div class="text-caption text-grey-7 q-mb-sm">
+                                        Este documento requiere 2 archivos (uno por cada certificado).
+                                    </div>
+                                </template>
+
+                                <!-- Resto de documentos: input normal -->
+                                <template v-else>
+                                    <q-file
+                                        v-model="doc.archivo"
+                                        @update:model-value="(val) => validarArchivos(val, doc)"
+                                        outlined
+                                        dense
+                                        hide-upload-btn
+                                        accept=".pdf,application/pdf"
+                                        :label="
+                                            doc.archivo && doc.archivo.length > 0
+                                                ? formatearTamanoArchivo(doc.archivo)
+                                                : 'Seleccione 1 archivo PDF'
+                                        "
+                                        class="q-mb-xs"
+                                    >
+                                        <template v-if="doc.archivo && doc.archivo.length > 0" #append>
+                                            <q-btn
+                                                flat
+                                                round
+                                                dense
+                                                icon="close"
+                                                color="grey"
+                                                @click="doc.archivo = []"
+                                            />
+                                        </template>
+                                    </q-file>
+
+                                    <div class="text-caption text-grey-7 q-mb-lg">
+                                        Este documento requiere 1 archivo.
+                                    </div>
+                                </template>
 
                                 <q-btn v-if="doc.reemplazar"
                                     flat
