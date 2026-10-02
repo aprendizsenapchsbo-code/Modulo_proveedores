@@ -8,6 +8,7 @@ import { useProveedorStore } from '../stores/proveedor.js';
 import { useAprobarPreRegistroStore } from '../stores/aprobarPreRegistro.js';
 import { useConfirm } from '../composables/useConfirm.js';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
+import ReenvioCorreo from '../components/ReenvioCorreo.vue';
 import { exitoNotify, errorNotify } from '../composables/Notify';
 import { useProveedoresPaginados } from '../composables/useProveedorPaginado.js';
 import apiClient from '../services/axios.js';
@@ -252,13 +253,22 @@ const modoBusqueda = computed(() => {
     return textBusqueda.value.trim() !== '' || modelTipo.value || modelEstado.value;
 });
 
+// Prioridad de estado: Registrado y Actualizado aparecen primero
+const prioridadEstado = (estado) => {
+    if (estado === 'Registrado' || estado === 'Actualizado') return 0;
+    return 1;
+};
+
 // Computed para la tabla: muestra resultados de búsqueda o lista paginada normal
 const proveedorVisibles = computed(() => {
-    if (modoBusqueda.value) {
-        return resultadosBusqueda.value;
-    }
-    // Sin filtros: mostramos los proveedores cargados por paginación
-    return proveedoresPaginados.value;
+    const lista = modoBusqueda.value
+        ? resultadosBusqueda.value
+        : proveedoresPaginados.value;
+
+    // Ordenar: Registrado / Actualizado primero, resto después
+    return [...lista].sort((a, b) =>
+        prioridadEstado(a.estadoProveedor) - prioridadEstado(b.estadoProveedor)
+    );
 });
 
 // Ajuste: el loading de la tabla debe reflejar tanto la paginación como la búsqueda
@@ -377,7 +387,7 @@ const getColorDocumento = (tipo) => {
 
 // 9. ACCIONES SOBRE DOCUMENTOS
 const abrirDocumento = async (url) => {
-    // console.log('Documento a abrir:', documento.url)
+    // console.log('Documento a abrir:', url)
     if (!url) {
         errorNotify('URL del documento no disponible')
         return;
@@ -998,6 +1008,8 @@ onUnmounted(() => {
                     <q-btn @click="persistent = true" class="btn-registrar text-white "
                         label="Registrar nuevo proveedor" />
                 </div>
+
+                <ReenvioCorreo/>
             </section>
 
             <section class="tablaProveedores">
